@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ElectraInsight - Smart Electricity Bill Analyzer</title>
+  <!-- Google Fonts - Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-container">
+          <i data-lucide="zap" class="logo-icon glow-cyan"></i>
+          <div>
+            <h1 class="logo-text">ElectraInsight</h1>
+            <span class="logo-subtext">Smart Energy Assistant</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#dashboard" class="nav-item active" data-target="dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="#appliances" class="nav-item" data-target="appliances">
+          <i data-lucide="plug"></i>
+          <span>Appliance Calculator</span>
+        </a>
+        <a href="#simulator" class="nav-item" data-target="simulator">
+          <i data-lucide="sliders"></i>
+          <span>"What-If" Simulator</span>
+        </a>
+        <a href="#roi" class="nav-item" data-target="roi">
+          <i data-lucide="trending-up"></i>
+          <span>Upgrade ROI</span>
+        </a>
+        <a href="#gamification" class="nav-item" data-target="gamification">
+          <i data-lucide="trophy"></i>
+          <span>Challenges & Badges</span>
+        </a>
+        <a href="#properties" class="nav-item" data-target="properties">
+          <i data-lucide="building-2"></i>
+          <span>Manage Properties</span>
+        </a>
+        <a href="#chatbot" class="nav-item" data-target="chatbot">
+          <i data-lucide="message-square"></i>
+          <span>AI Energy Assistant</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="footer-status">
+          <div class="status-indicator-dot pulsing-green"></div>
+          <div>
+            <div class="status-title">Energy Saving Mode</div>
+            <div class="status-desc">Active & Optimizing</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="main-content">
+      <!-- HEADER -->
+      <header class="app-header">
+        <div class="header-left">
+          <button class="sidebar-toggle" id="sidebarToggle">
+            <i data-lucide="menu"></i>
+          </button>
+          <h2 class="section-title" id="currentSectionTitle">Dashboard Overview</h2>
+        </div>
+        <div class="header-right">
+          <!-- Property Switcher -->
+          <div class="property-selector-container">
+            <i data-lucide="home" class="prop-icon"></i>
+            <select id="propertySelector" class="property-select">
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+          
+          <!-- Theme Toggle -->
+          <button class="theme-toggle-btn" id="themeToggleBtn" title="Toggle Light/Dark Theme">
+            <i data-lucide="sun" class="theme-btn-icon sun-icon"></i>
+            <i data-lucide="moon" class="theme-btn-icon moon-icon hidden"></i>
+          </button>
+
+          <!-- Streak Indicator -->
+          <div class="streak-badge" title="Savings Streak: Consecutive months with lower bills!">
+            <i data-lucide="flame" class="streak-icon"></i>
+            <span id="streakCount">0 Months</span>
+          </div>
+
+          <!-- Energy Score Header -->
+          <div class="header-score-badge" title="Overall Energy Efficiency Score">
+            <span class="score-label">Energy Score</span>
+            <span class="score-value" id="headerScoreValue">--</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- SECTIONS CONTAINER -->
+      <div class="section-viewport">
+        
+        <!-- DASHBOARD SECTION -->
+        <section id="dashboard" class="content-section active">
+          <!-- Quick Stats Row -->
+          <div class="stats-grid">
+            <div class="stat-card glass-card border-glow-purple">
+              <div class="stat-icon-wrapper bg-purple">
+                <i data-lucide="activity"></i>
+              </div>
+              <div class="stat-content">
+                <span class="stat-label">Units Consumed</span>
+                <h3 class="stat-value" id="statUnits">-- <span class="unit-label">kWh</span></h3>
+                <span class="stat-subtext" id="statUnitsCompare">No historic data</span>
+              </div>
+            </div>
+
+            <div class="stat-card glass-card border-glow-cyan">
+              <div class="stat-icon-wrapper bg-cyan">
+                <i data-lucide="indian-rupee"></i>
+              </div>
+              <div class="stat-content">
+                <span class="stat-label">Total Bill Amount</span>
+                <h3 class="stat-value" id="statAmount">--</h3>
+                <span class="stat-subtext" id="statAmountCompare">No historic data</span>
+              </div>
+            </div>
+
+            <div class="stat-card glass-card border-glow-green">
+              <div class="stat-icon-wrapper bg-green">
+                <i data-lucide="leaf"></i>
+              </div>
+              <div class="stat-content">
+                <span class="stat-label">Carbon Footprint</span>
+                <h3 class="stat-value" id="statCarbon">-- <span class="unit-label">kg CO₂</span></h3>
+                <span class="stat-subtext text-green" id="statTreesOffset">-- trees offset needed</span>
+              </div>
+            </div>
+
+            <div class="stat-card glass-card score-card border-glow-yellow">
+              <div class="score-circle-wrapper">
+                <svg class="progress-ring" width="70" height="70">
+                  <circle class="progress-ring-bg" stroke="rgba(255,255,255,0.05)" stroke-width="6" fill="transparent" r="28" cx="35" cy="35" />
+                  <circle class="progress-ring-bar" id="scoreRing" stroke="var(--neon-yellow)" stroke-width="6" fill="transparent" r="28" cx="35" cy="35" stroke-dasharray="175.9" stroke-dashoffset="175.9" />
+                </svg>
+                <div class="score-number" id="dashScoreValue">--</div>
+              </div>
+              <div class="stat-content">
+                <span class="stat-label">Efficiency Score</span>
+                <h3 class="score-level-text" id="scoreLevel">Calculating</h3>
+                <span class="stat-subtext" id="scoreFeedback">Upload a bill to compute</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Uploader & Main Graph Row -->
+          <div class="dashboard-main-grid">
+            <!-- Left Side: Upload & Quick insights -->
+            <div class="dashboard-left-panel">
+              <div class="glass-card uploader-card">
+                <h4 class="card-title"><i data-lucide="file-text"></i> Upload Electricity Bill</h4>
+                <p class="card-desc">Drag and drop your electricity bill PDF to automatically extract units, monthly trend, and savings opportunities.</p>
+                
+                <div class="upload-dropzone" id="uploadDropzone">
+                  <input type="file" id="billFileInput" accept="application/pdf" class="file-input-hidden">
+                  <i data-lucide="upload-cloud" class="upload-icon"></i>
+                  <span class="upload-text">Drag & drop electricity bill PDF here</span>
+                  <span class="upload-or">or</span>
+                  <button class="btn btn-outline" id="browseBtn">Browse File</button>
+                  <span class="upload-limit">Supports PDF bills (e.g., BESCOM, MSEDCL, Tata Power)</span>
+                </div>
+                
+                <div class="parsing-loader hidden" id="parsingLoader">
+                  <div class="spinner"></div>
+                  <span id="parsingStatusText">Reading PDF content...</span>
+                </div>
+
+                <div class="demo-data-helper">
+                  <span>Want to test the features instantly?</span>
+                  <button class="btn btn-glow" id="loadDemoBtn">Load Sample History</button>
+                </div>
+              </div>
+
+              <!-- Bill Spike & Details Alert -->
+              <div class="glass-card alert-card hidden" id="spikeAlertCard">
+                <div class="alert-header">
+                  <div class="alert-icon bg-red-dim text-red pulsing-red-glow">
+                    <i data-lucide="alert-triangle"></i>
+                  </div>
+                  <div>
+                    <h4 class="alert-title text-red">Bill Spike Detected</h4>
+                    <span class="alert-subtitle" id="spikeValueText">Consumption increased by 32%</span>
+                  </div>
+                </div>
+                <div class="alert-body">
+                  <p class="alert-desc">Possible factors causing this abnormal usage:</p>
+                  <ul class="alert-list">
+                    <li><i data-lucide="snowflake" class="text-cyan"></i> Summer cooling: Heavy AC operation</li>
+                    <li><i data-lucide="tv" class="text-purple"></i> New appliances running continuously</li>
+                    <li><i data-lucide="droplet" class="text-blue"></i> Water motor/pump left running</li>
+                  </ul>
+                  <div class="alert-action">
+                    <button class="btn btn-link btn-sm" id="viewSimulatorFromAlert">Run "What-If" Simulation <i data-lucide="chevron-right"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Side: Trends Chart & Projections -->
+            <div class="glass-card chart-card">
+              <div class="chart-header">
+                <div>
+                  <h4 class="card-title"><i data-lucide="bar-chart-3"></i> Monthly Consumption & Billing Trends</h4>
+                  <p class="card-desc">Units consumed (kWh) vs total bill amount (₹)</p>
+                </div>
+                <div class="chart-toggles">
+                  <button class="chart-toggle-btn active" data-chart-type="all">All Trends</button>
+                  <button class="chart-toggle-btn" data-chart-type="seasons">Summer vs Winter</button>
+                </div>
+              </div>
+              <div class="chart-wrapper">
+                <canvas id="trendChart"></canvas>
+              </div>
+              <div class="chart-footer-metrics">
+                <div class="submetric">
+                  <span class="submetric-label">Avg. Cost/Unit</span>
+                  <span class="submetric-val" id="avgCostPerUnit">--</span>
+                </div>
+                <div class="submetric">
+                  <span class="submetric-label">Peak Usage Month</span>
+                  <span class="submetric-val" id="peakMonthText">--</span>
+                </div>
+                <div class="submetric">
+                  <span class="submetric-label">Next Month Prediction</span>
+                  <span class="submetric-val text-cyan" id="nextMonthPrediction">--</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Grid: Insights & Details -->
+          <div class="dashboard-bottom-grid">
+            <!-- Bill details breakdown -->
+            <div class="glass-card details-card">
+              <h4 class="card-title"><i data-lucide="receipt"></i> Current Bill Breakdown</h4>
+              <p class="card-desc">Line-item breakdown of your last uploaded bill</p>
+              
+              <div class="bill-breakdown-list">
+                <div class="breakdown-item">
+                  <span>Consumer Number</span>
+                  <strong id="bdConsumerNo">--</strong>
+                </div>
+                <div class="breakdown-item">
+                  <span>Billing Period</span>
+                  <strong id="bdBillingMonth">--</strong>
+                </div>
+                <div class="breakdown-item">
+                  <span>Energy Charges (Units Used)</span>
+                  <strong id="bdEnergyCharges">--</strong>
+                </div>
+                <div class="breakdown-item">
+                  <span>Fixed/Sanctioned Load Charges</span>
+                  <strong id="bdFixedCharges">--</strong>
+                </div>
+                <div class="breakdown-item">
+                  <span>Taxes & Duties</span>
+                  <strong id="bdTaxes">--</strong>
+                </div>
+                <hr class="card-divider">
+                <div class="breakdown-item total-item">
+                  <span>Grand Total</span>
+                  <span class="total-value text-cyan" id="bdGrandTotal">--</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Personalized Smart Savings Tips -->
+            <div class="glass-card recommendations-card">
+              <div class="recommendations-header">
+                <h4 class="card-title"><i data-lucide="sparkles" class="text-yellow"></i> AI Smart Savings Recommendations</h4>
+                <span class="badge badge-green">Tailored Recommendations</span>
+              </div>
+              <div class="recs-container" id="smartRecommendationsContainer">
+                <div class="rec-empty-state">
+                  <i data-lucide="info" class="empty-icon"></i>
+                  <span>No recommendations yet. Upload a bill or load sample data to generate customized insights.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- APPLIANCE CALCULATOR SECTION -->
+        <section id="appliances" class="content-section">
+          <div class="section-intro">
+            <h3 class="intro-title">Household Appliance Consumption Calculator</h3>
+            <p class="intro-desc">Configure the appliances in this property. Adjust the quantity and hours of daily usage to see where your electricity goes and how it contributes to your total monthly bill.</p>
+          </div>
+
+          <div class="appliance-layout">
+            <!-- Left Side: Config Grid -->
+            <div class="appliance-config-panel">
+              <div class="config-grid-header">
+                <h4>Household Appliances</h4>
+                <button class="btn btn-sm btn-outline" id="addApplianceBtn"><i data-lucide="plus"></i> Add Custom</button>
+              </div>
+
+              <!-- List of appliances -->
+              <div class="appliances-grid" id="appliancesGrid">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- Right Side: Chart & Summary -->
+            <div class="appliance-summary-panel">
+              <div class="glass-card summary-card sticky-card">
+                <h4 class="card-title">Estimated Monthly Share</h4>
+                
+                <div class="appliance-summary-total">
+                  <div class="summary-metric">
+                    <span class="metric-label">Estimated Monthly Units</span>
+                    <span class="metric-value text-purple" id="calcTotalUnits">0 <span class="unit-label">kWh</span></span>
+                  </div>
+                  <div class="summary-metric">
+                    <span class="metric-label">Estimated Monthly Cost</span>
+                    <span class="metric-value text-cyan" id="calcTotalCost">₹0</span>
+                  </div>
+                </div>
+
+                <div class="appliance-donut-wrapper">
+                  <canvas id="applianceShareChart"></canvas>
+                </div>
+
+                <div class="comparison-bar-wrapper">
+                  <span class="bar-label">Percentage of last bill: <strong id="calcBillPct">0%</strong></span>
+                  <div class="progress-bar-bg">
+                    <div class="progress-bar-fill bg-purple" id="calcBillPctFill" style="width: 0%"></div>
+                  </div>
+                </div>
+
+                <button class="btn btn-glow btn-full" id="syncToSimulatorBtn">Transfer to "What-If" Simulator</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- WHAT-IF SIMULATOR SECTION -->
+        <section id="simulator" class="content-section">
+          <div class="section-intro">
+            <h3 class="intro-title">Interactive "What-If" Energy Simulator</h3>
+            <p class="intro-desc">Change your daily behaviors or upgrade equipment to simulate immediate impacts on your monthly units, financial savings, and environmental carbon footprint.</p>
+          </div>
+
+          <div class="simulator-layout">
+            <!-- Left Side: Simulation Controls -->
+            <div class="simulator-controls-panel">
+              <!-- Simulation Scenario 1: AC hours reduction -->
+              <div class="glass-card sim-card">
+                <div class="sim-card-header">
+                  <div class="sim-icon bg-cyan-dim text-cyan">
+                    <i data-lucide="snowflake"></i>
+                  </div>
+                  <div>
+                    <h4 class="sim-title">Reduce AC Daily Usage</h4>
+                    <span class="sim-subtitle">AC consumes major energy. How many hours can you cut back?</span>
+                  </div>
+                </div>
+                <div class="sim-control-body">
+                  <div class="slider-wrapper">
+                    <div class="slider-labels">
+                      <span>Cut Back: <strong id="simAcHoursVal">0 hours</strong> daily</span>
+                      <span>Max: 8 hrs</span>
+                    </div>
+                    <input type="range" id="simAcHoursSlider" class="custom-slider" min="0" max="8" step="0.5" value="0">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Simulation Scenario 2: AC Temp Set point -->
+              <div class="glass-card sim-card">
+                <div class="sim-card-header">
+                  <div class="sim-icon bg-yellow-dim text-yellow">
+                    <i data-lucide="thermometer"></i>
+                  </div>
+                  <div>
+                    <h4 class="sim-title">Raise AC Temperature</h4>
+                    <span class="sim-subtitle">Setting AC to 24°C instead of 20°C saves ~6% energy per degree.</span>
+                  </div>
+                </div>
+                <div class="sim-control-body">
+                  <div class="slider-wrapper">
+                    <div class="slider-labels">
+                      <span>Set AC to: <strong id="simAcTempVal">24°C</strong> (Base: 20°C)</span>
+                      <span>Range: 20°C - 28°C</span>
+                    </div>
+                    <input type="range" id="simAcTempSlider" class="custom-slider" min="20" max="28" step="1" value="24">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Simulation Scenario 3: LED Migration -->
+              <div class="glass-card sim-card">
+                <div class="sim-card-header">
+                  <div class="sim-icon bg-green-dim text-green">
+                    <i data-lucide="lightbulb"></i>
+                  </div>
+                  <div>
+                    <h4 class="sim-title">Replace Old Bulbs with 9W LEDs</h4>
+                    <span class="sim-subtitle">Replace incandescent 60W or halogen bulbs with energy-saving LEDs.</span>
+                  </div>
+                </div>
+                <div class="sim-control-body">
+                  <div class="slider-wrapper">
+                    <div class="slider-labels">
+                      <span>Replace: <strong id="simLedsVal">0 bulbs</strong></span>
+                      <span>Max: 15 bulbs</span>
+                    </div>
+                    <input type="range" id="simLedsSlider" class="custom-slider" min="0" max="15" step="1" value="0">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Simulation Scenario 4: Smart Plug Standby power -->
+              <div class="glass-card sim-card">
+                <div class="sim-card-header">
+                  <div class="sim-icon bg-purple-dim text-purple">
+                    <i data-lucide="toggle-left"></i>
+                  </div>
+                  <div>
+                    <h4 class="sim-title">Eliminate Standby Power Draw</h4>
+                    <span class="sim-subtitle">TVs, chargers, and microwaves draw 5-10W standby power even when turned off.</span>
+                  </div>
+                </div>
+                <div class="sim-control-body">
+                  <div class="switch-row">
+                    <span>Activate smart plugs to cut standby energy:</span>
+                    <label class="custom-switch">
+                      <input type="checkbox" id="simStandbySwitch">
+                      <span class="switch-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Side: Dynamic Savings Visualizer -->
+            <div class="simulator-results-panel">
+              <div class="glass-card results-card sticky-card">
+                <h4 class="card-title text-green"><i data-lucide="sparkles"></i> Sim Estimated Monthly Savings</h4>
+                
+                <div class="savings-primary-stats">
+                  <div class="savings-stat">
+                    <span class="savings-label">Monthly Money Saved</span>
+                    <h3 class="savings-value text-green" id="simSavedMoney">₹0</h3>
+                  </div>
+                  <div class="savings-stat">
+                    <span class="savings-label">Units Saved</span>
+                    <h3 class="savings-value text-cyan" id="simSavedUnits">0 <span class="unit-label">kWh</span></h3>
+                  </div>
+                </div>
+
+                <hr class="card-divider">
+
+                <div class="savings-ecological">
+                  <div class="eco-stat">
+                    <i data-lucide="cloud-lightning" class="eco-icon text-cyan"></i>
+                    <div>
+                      <span class="eco-label">Carbon Reduced</span>
+                      <strong class="eco-value" id="simCarbonSaved">0 kg CO₂</strong>
+                    </div>
+                  </div>
+                  <div class="eco-stat">
+                    <i data-lucide="trees" class="eco-icon text-green"></i>
+                    <div>
+                      <span class="eco-label">Offset Equivalent</span>
+                      <strong class="eco-value text-green" id="simTreesOffsetSaved">0.0 trees</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sim-bill-comparison">
+                  <h5 class="comparison-title">Simulated Bill Comparison</h5>
+                  
+                  <div class="comparison-bars">
+                    <div class="comp-bar-container">
+                      <span class="comp-bar-name">Original Bill (₹)</span>
+                      <div class="comp-bar-track">
+                        <div class="comp-bar-fill bg-grey" id="simOriginalBillBar" style="width: 100%"></div>
+                        <span class="comp-bar-value" id="simOriginalBillText">₹0</span>
+                      </div>
+                    </div>
+
+                    <div class="comp-bar-container">
+                      <span class="comp-bar-name text-green">Simulated Bill (₹)</span>
+                      <div class="comp-bar-track">
+                        <div class="comp-bar-fill bg-green" id="simNewBillBar" style="width: 100%"></div>
+                        <span class="comp-bar-value" id="simNewBillText">₹0</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- APPLIANCE UPGRADE ROI CALCULATOR SECTION -->
+        <section id="roi" class="content-section">
+          <div class="section-intro">
+            <h3 class="intro-title">Appliance Upgrade ROI (Return on Investment) Calculator</h3>
+            <p class="intro-desc">Compare older, inefficient appliances against modern 5-star inverter-based options. Calculate exact yearly savings and the time needed to recoup your investment.</p>
+          </div>
+
+          <div class="roi-layout">
+            <!-- Left Side: ROI Input Form -->
+            <div class="roi-form-panel">
+              <div class="glass-card form-card">
+                <h4 class="card-title"><i data-lucide="calculator"></i> Appliance Specification</h4>
+                <p class="card-desc">Enter your current appliance profile and the suggested upgrade specifications.</p>
+                
+                <form id="roiForm" class="roi-calculator-form" onsubmit="return false;">
+                  <div class="form-group">
+                    <label for="roiApplianceType" class="form-label">Appliance Type</label>
+                    <select id="roiApplianceType" class="form-select">
+                      <option value="AC">Air Conditioner (1.5 Ton)</option>
+                      <option value="Fridge">Refrigerator (300 Liters)</option>
+                      <option value="Fan">Ceiling Fan</option>
+                    </select>
+                  </div>
+
+                  <div class="form-row-2">
+                    <div class="form-group">
+                      <label for="roiCurrentStar" class="form-label">Current Rating</label>
+                      <select id="roiCurrentStar" class="form-select">
+                        <option value="1">1 Star / Inefficient</option>
+                        <option value="2">2 Star</option>
+                        <option value="3" selected>3 Star (Standard)</option>
+                        <option value="4">4 Star</option>
+                      </select>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="roiCurrentAge" class="form-label">Current Appliance Age</label>
+                      <select id="roiCurrentAge" class="form-select">
+                        <option value="1">1-2 Years</option>
+                        <option value="3">3-4 Years</option>
+                        <option value="5" selected>5-7 Years</option>
+                        <option value="8">8+ Years</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="roiHoursDaily" class="form-label">Daily Usage (Hours)</label>
+                    <input type="range" id="roiHoursDaily" class="custom-slider" min="1" max="24" step="1" value="8">
+                    <div class="slider-display-val"><strong id="roiHoursDailyVal">8</strong> hours/day</div>
+                  </div>
+
+                  <hr class="form-divider">
+
+                  <div class="form-row-2">
+                    <div class="form-group">
+                      <label for="roiUpgradeStar" class="form-label">Suggested Upgrade</label>
+                      <select id="roiUpgradeStar" class="form-select" disabled>
+                        <option value="5" selected>5-Star Inverter model</option>
+                      </select>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="roiUpgradeCost" class="form-label">Upgrade Purchase Cost (₹)</label>
+                      <input type="number" id="roiUpgradeCost" class="form-input" min="500" value="42000">
+                    </div>
+                  </div>
+
+                  <button class="btn btn-glow btn-full" id="btnCalculateRoi">Calculate Payback Period</button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Right Side: ROI Outputs and Payback Charts -->
+            <div class="roi-results-panel">
+              <div class="glass-card results-card">
+                <h4 class="card-title text-cyan"><i data-lucide="trending-up"></i> Financial Return Metrics</h4>
+                
+                <div class="roi-metrics-grid">
+                  <div class="roi-metric-item">
+                    <span class="roi-metric-lbl">Annual Energy Saved</span>
+                    <strong class="roi-metric-val text-cyan" id="roiEnergySaved">-- <span class="unit-label">kWh</span></strong>
+                  </div>
+                  <div class="roi-metric-item">
+                    <span class="roi-metric-lbl">Annual Financial Savings</span>
+                    <strong class="roi-metric-val text-green" id="roiMoneySaved">--</strong>
+                  </div>
+                  <div class="roi-metric-item full-width">
+                    <span class="roi-metric-lbl">Estimated Payback Period</span>
+                    <div class="payback-highlight">
+                      <strong class="roi-metric-val text-yellow" id="roiPaybackPeriod">--</strong>
+                      <span class="payback-sub" id="roiVerdictText">Enter details to run analysis</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="roi-chart-wrapper">
+                  <h5 class="comparison-title">Investment vs. Cumulative Savings (5 Years)</h5>
+                  <canvas id="roiTimelineChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- GAMIFICATION & CHALLENGES SECTION -->
+        <section id="gamification" class="content-section">
+          <div class="section-intro">
+            <h3 class="intro-title">Energy Saving Challenges & Gamification</h3>
+            <p class="intro-desc">Earn badges and track points by completing energy-saving goals. Maintain your savings streak to level up your property's efficiency ranking.</p>
+          </div>
+
+          <div class="gamification-layout">
+            <!-- Left Side: Challenges list & Streak Details -->
+            <div class="gamification-left-panel">
+              <div class="glass-card challenge-status-card">
+                <div class="badge-status-top">
+                  <div class="streak-circle glow-orange">
+                    <i data-lucide="flame" class="streak-circle-icon"></i>
+                    <span id="gamificationStreakVal">3</span>
+                    <span class="streak-circle-lbl">Month Streak</span>
+                  </div>
+                  <div class="points-display">
+                    <span class="points-label">Total Points</span>
+                    <h3 class="points-value text-cyan" id="userPoints">350 <span class="unit-label">XP</span></h3>
+                    <div class="rank-badge badge-purple" id="userRank">Level 2: Eco-Novice</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Active challenges -->
+              <div class="glass-card active-challenges-card">
+                <h4 class="card-title"><i data-lucide="activity"></i> Active Monthly Challenges</h4>
+                <p class="card-desc">Participate in challenges to save energy and earn XP.</p>
+                
+                <div class="challenges-list" id="challengesList">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Side: Badge Drawer & Streak info -->
+            <div class="gamification-right-panel">
+              <div class="glass-card badges-card">
+                <h4 class="card-title"><i data-lucide="award"></i> Achieved Badges & Milestones</h4>
+                <p class="card-desc">Trophies earned through continuous efficiency improvements.</p>
+                
+                <div class="badges-grid" id="badgesGrid">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PROPERTY MANAGER SECTION -->
+        <section id="properties" class="content-section">
+          <div class="section-intro">
+            <h3 class="intro-title">Multiple Property Management</h3>
+            <p class="intro-desc">Manage electricity history, specific appliances, and savings trends across separate properties under a single account.</p>
+          </div>
+
+          <div class="properties-layout">
+            <!-- Properties List -->
+            <div class="properties-list-wrapper">
+              <div class="glass-card properties-card">
+                <div class="properties-header">
+                  <h4 class="card-title"><i data-lucide="building-2"></i> Active Properties</h4>
+                  <button class="btn btn-sm btn-outline" id="addNewPropertyBtn"><i data-lucide="plus"></i> Add Property</button>
+                </div>
+                <div class="properties-container" id="propertiesContainer">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Add/Edit Property Form Modal context (simulated in card) -->
+            <div class="properties-form-wrapper hidden" id="addPropertyFormCard">
+              <div class="glass-card form-card">
+                <h4 class="card-title" id="propFormTitle">Add New Property</h4>
+                <form id="propertyForm" onsubmit="return false;">
+                  <div class="form-group">
+                    <label for="propName" class="form-label">Property Name</label>
+                    <input type="text" id="propName" class="form-input" placeholder="e.g. Shop, Delhi Apartment" required>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="propType" class="form-label">Property Type</label>
+                    <select id="propType" class="form-select">
+                      <option value="apartment">Apartment</option>
+                      <option value="house">Independent House</option>
+                      <option value="commercial">Shop / Commercial Office</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="propSanctionedLoad" class="form-label">Sanctioned Load (kW)</label>
+                    <input type="number" id="propSanctionedLoad" class="form-input" min="1" max="50" value="3">
+                  </div>
+
+                  <div class="form-actions">
+                    <button class="btn btn-outline" type="button" id="cancelAddPropBtn">Cancel</button>
+                    <button class="btn btn-glow" type="button" id="savePropertyBtn">Save Property</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- AI ENERGY ASSISTANT SECTION -->
+        <section id="chatbot" class="content-section">
+          <div class="section-intro">
+            <h3 class="intro-title">AI Energy Assistant</h3>
+            <p class="intro-desc">Ask queries in natural language about your bills, energy spikes, usage distributions, and customized conservation strategies.</p>
+          </div>
+
+          <div class="chatbot-layout glass-card">
+            <!-- Left Side: Chat view -->
+            <div class="chat-main-panel">
+              <div class="chat-messages-container" id="chatMessages">
+                <!-- Initial welcoming message -->
+                <div class="chat-bubble assistant">
+                  <div class="bubble-avatar">
+                    <i data-lucide="zap" class="text-cyan"></i>
+                  </div>
+                  <div class="bubble-content">
+                    <p>Hello! I am <strong>Electra</strong>, your AI Energy Assistant.</p>
+                    <p>I have scanned your consumption data for this property. How can I help you today?</p>
+                    <p>You can ask me questions like:</p>
+                    <ul>
+                      <li>"Why was my bill high this month?"</li>
+                      <li>"Show my highest bill month"</li>
+                      <li>"Can I reduce my bill below ₹2000?"</li>
+                      <li>"How much did I spend last summer?"</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Quick Actions / Prompts -->
+              <div class="chat-quick-actions">
+                <button class="btn-chat-prompt" data-query="Why was my bill high this month?">Why was my bill high?</button>
+                <button class="btn-chat-prompt" data-query="Show my highest bill month.">Show highest bill</button>
+                <button class="btn-chat-prompt" data-query="How can I save ₹1000/month?">How can I save ₹1000?</button>
+                <button class="btn-chat-prompt" data-query="Compare summer vs winter usage.">Summer vs Winter</button>
+              </div>
+
+              <!-- Input bar -->
+              <div class="chat-input-bar">
+                <input type="text" id="chatInputField" placeholder="Ask Electra a question about your energy usage..." autocomplete="off">
+                <button class="btn btn-glow" id="sendChatBtn"><i data-lucide="send"></i></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Script logic -->
+  <script src="app.js"></script>
+</body>
+</html>

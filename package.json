@@ -1,0 +1,26 @@
+{
+  "name": "electricity-bill-analyzer",
+  "version": "1.0.0",
+  "description": "A premium dashboard to upload, parse, and analyze electricity bills with dynamic savings tips, What-If simulator, ROI calculations, gamification challenges, and an AI energy assistant.",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vite --port 8088",
+    "start": "vite --port 8088",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "electricity-bill",
+    "analyzer",
+    "energy-savings",
+    "appliance-calculator",
+    "what-if-simulator",
+    "gamification",
+    "ai-assistant"
+  ],
+  "author": "VoltInsight Team",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.2.0"
+  }
+}
