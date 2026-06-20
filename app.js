@@ -1852,3 +1852,11 @@ function processChatbotNLP(query) {
             <li>"Compare summer vs winter usage"</li>
           </ul>`;
 }
+
+// Expose functions globally for inline HTML event handlers
+window.adjustQty = adjustQty;
+window.updateApplianceHours = updateApplianceHours;
+window.deleteAppliance = deleteAppliance;
+window.selectProperty = selectProperty;
+window.deleteProperty = deleteProperty;
+
