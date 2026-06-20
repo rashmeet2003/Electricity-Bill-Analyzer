@@ -12,6 +12,7 @@ const DEFAULT_PROPERTIES = [
     id: 'prop-home',
     name: 'Home Apartment',
     type: 'apartment',
+    billingType: 'postpaid',
     sanctionedLoad: 3, // kW
     history: [
       { month: 'Jan 2026', units: 180, amount: 1260, fixedCharges: 120, taxes: 108, consumerNo: '109843729' },
@@ -34,7 +35,15 @@ const DEFAULT_PROPERTIES = [
     id: 'prop-shop',
     name: 'Retail Shop',
     type: 'commercial',
+    billingType: 'prepaid',
     sanctionedLoad: 8, // kW
+    balance: 420, // ₹ current balance
+    dailyBurnRate: 85, // ₹ average burn per day
+    recharges: [
+      { date: '2026-06-15', amount: 1000, receiptNo: 'RC-54092817A' },
+      { date: '2026-06-01', amount: 2000, receiptNo: 'RC-54092811B' },
+      { date: '2026-05-18', amount: 1500, receiptNo: 'RC-54092795C' }
+    ],
     history: [
       { month: 'Jan 2026', units: 450, amount: 4050, fixedCharges: 350, taxes: 360, consumerNo: '540928172' },
       { month: 'Feb 2026', units: 480, amount: 4320, fixedCharges: 350, taxes: 384, consumerNo: '540928172' },
@@ -220,6 +229,12 @@ document.addEventListener('DOMContentLoaded', () => {
         renderGamificationSection();
       } else if (targetId === 'properties') {
         renderPropertiesSection();
+      }
+
+      // Close sidebar on mobile
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
       }
     });
   });
@@ -409,6 +424,72 @@ function initializeUI() {
     themeToggleBtn.addEventListener('click', toggleTheme);
   }
 
+  // Prepaid Recharge Form triggers
+  const btnManualRecharge = document.getElementById('btnManualRecharge');
+  if (btnManualRecharge) {
+    btnManualRecharge.addEventListener('click', () => {
+      document.getElementById('uploadDropzone').classList.add('hidden');
+      document.getElementById('prepaidRechargeForm').classList.remove('hidden');
+      document.getElementById('rechargeDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('rechargeAmount').value = '';
+    });
+  }
+
+  const btnCancelRecharge = document.getElementById('btnCancelRecharge');
+  if (btnCancelRecharge) {
+    btnCancelRecharge.addEventListener('click', () => {
+      document.getElementById('prepaidRechargeForm').classList.add('hidden');
+      document.getElementById('uploadDropzone').classList.remove('hidden');
+    });
+  }
+
+  const btnSaveRecharge = document.getElementById('btnSaveRecharge');
+  if (btnSaveRecharge) {
+    btnSaveRecharge.addEventListener('click', () => {
+      const amountInput = document.getElementById('rechargeAmount');
+      const dateInput = document.getElementById('rechargeDate');
+      const amountVal = Number(amountInput.value);
+      const dateVal = dateInput.value;
+
+      if (!amountVal || amountVal <= 0) {
+        alert('Please enter a valid recharge amount greater than ₹0.');
+        return;
+      }
+      if (!dateVal) {
+        alert('Please select a valid recharge date.');
+        return;
+      }
+
+      const prop = getActiveProperty();
+      const receiptNo = 'RC-' + Math.floor(10000000 + Math.random() * 90000000) + 'A';
+      
+      if (!prop.recharges) {
+        prop.recharges = [];
+      }
+      if (prop.balance === undefined) {
+        prop.balance = 0;
+      }
+      
+      prop.recharges.unshift({
+        date: dateVal,
+        amount: amountVal,
+        receiptNo: receiptNo
+      });
+      prop.balance += amountVal;
+
+      saveStateToStorage();
+      
+      // Reset form & show dropzone
+      document.getElementById('prepaidRechargeForm').classList.add('hidden');
+      document.getElementById('uploadDropzone').classList.remove('hidden');
+
+      renderDashboard();
+      updateGlobalHeaderMetrics();
+
+      alert(`⚡ Recharge of ₹${amountVal} logged successfully!\nNew Balance: ₹${prop.balance}`);
+    });
+  }
+
   // Initialize Lucide Icons
   lucide.createIcons();
 }
@@ -499,27 +580,268 @@ function renderDashboard() {
   const units = latest.units;
   const amount = latest.amount;
 
-  document.getElementById('statUnits').innerHTML = `${units} <span class="unit-label">kWh</span>`;
-  document.getElementById('statAmount').innerText = `₹${amount}`;
+  const card1Label = document.querySelector('.border-glow-purple .stat-label');
+  const card2Label = document.querySelector('.border-glow-cyan .stat-label');
 
-  // MoM comparison for units & amount
-  if (history.length >= 2) {
-    const prev = history[history.length - 2];
+  if (prop.billingType === 'prepaid') {
+    if (card1Label) card1Label.innerText = 'Avg. Daily Usage';
+    if (card2Label) card2Label.innerText = 'Remaining Balance';
+
+    // Show manual recharge button & adjust demo text
+    const btnManual = document.getElementById('btnManualRecharge');
+    if (btnManual) btnManual.classList.remove('hidden');
+    const demoHelperText = document.getElementById('demoHelperText');
+    if (demoHelperText) demoHelperText.innerText = 'Want to log a recharge manually?';
     
-    // Units MoM
-    const unitsChange = ((units - prev.units) / prev.units * 100).toFixed(1);
-    const unitsArrow = units > prev.units ? '↑' : '↓';
-    const unitsClass = units > prev.units ? 'text-red' : 'text-green';
-    document.getElementById('statUnitsCompare').innerHTML = `<span class="${unitsClass}">${unitsArrow} ${Math.abs(unitsChange)}%</span> vs last month`;
+    // Update dropzone limits description
+    const uploadOrText = document.querySelector('.upload-dropzone .upload-text');
+    const uploadLimit = document.querySelector('.upload-dropzone .upload-limit');
+    if (uploadOrText) uploadOrText.innerText = 'Drag & drop recharge receipt or screenshot here';
+    if (uploadLimit) uploadLimit.innerText = 'Supports PDF bills, screenshots, and image receipts';
 
-    // Amount MoM
-    const amountChange = ((amount - prev.amount) / prev.amount * 100).toFixed(1);
-    const amountArrow = amount > prev.amount ? '↑' : '↓';
-    const amountClass = amount > prev.amount ? 'text-red' : 'text-green';
-    document.getElementById('statAmountCompare').innerHTML = `<span class="${amountClass}">${amountArrow} ${Math.abs(amountChange)}%</span> vs last month`;
+    // Update uploader card titles
+    const uploaderCardTitle = document.getElementById('uploaderCardTitle');
+    const uploaderCardDesc = document.getElementById('uploaderCardDesc');
+    if (uploaderCardTitle) uploaderCardTitle.innerHTML = `<i data-lucide="receipt"></i> Log Recharge / OCR Receipt`;
+    if (uploaderCardDesc) uploaderCardDesc.innerText = 'Drag and drop your smart meter recharge receipt image/PDF to run simulated OCR, or log your payments manually below.';
+
+    // Calculate average daily usage based on latest bill / 30
+    const dailyUnits = latest ? (latest.units / 30).toFixed(1) : 0;
+    document.getElementById('statUnits').innerHTML = `${dailyUnits} <span class="unit-label">kWh/day</span>`;
+    document.getElementById('statUnitsCompare').innerHTML = `Avg. Daily Cost: ~₹${prop.dailyBurnRate || 0}`;
+
+    // Show remaining balance
+    const balance = prop.balance !== undefined ? prop.balance : 0;
+    document.getElementById('statAmount').innerText = `₹${balance}`;
+    const daysLeft = prop.dailyBurnRate > 0 ? Math.round(balance / prop.dailyBurnRate) : 0;
+    const daysClass = daysLeft < 3 ? 'text-red font-semibold' : 'text-green';
+    document.getElementById('statAmountCompare').innerHTML = `<span class="${daysClass}">Est. Days Left: ${daysLeft} days</span>`;
+
+    // Low Balance warning card trigger
+    const alertCard = document.getElementById('spikeAlertCard');
+    if (balance < 200 || daysLeft < 3) {
+      alertCard.className = 'glass-card alert-card border-glow-yellow-dim'; // override borders
+      alertCard.innerHTML = `
+        <div class="alert-header">
+          <div class="alert-icon bg-yellow-dim text-yellow pulsing-yellow-glow">
+            <i data-lucide="alert-triangle"></i>
+          </div>
+          <div>
+            <h4 class="alert-title text-yellow">Low Prepaid Balance Alert</h4>
+            <span class="alert-subtitle text-yellow">Your smart meter wallet is running low!</span>
+          </div>
+        </div>
+        <div class="alert-body">
+          <p class="alert-desc">Your balance (<strong>₹${balance}</strong>) will last approximately <strong>${daysLeft} days</strong> at current consumption levels. Recharge soon to avoid automatic power cutoff.</p>
+          <ul class="alert-list">
+            <li><i data-lucide="indian-rupee" class="text-cyan"></i> Wallet Balance: ₹${balance}</li>
+            <li><i data-lucide="zap" class="text-yellow"></i> Daily Burn Rate: ₹${prop.dailyBurnRate || 0}/day</li>
+          </ul>
+          <div class="alert-action" style="margin-top: 12px;">
+            <button class="btn btn-glow btn-sm" id="btnShowRechargeFromAlert">Log Recharge Manually</button>
+          </div>
+        </div>
+      `;
+      alertCard.classList.remove('hidden');
+      
+      // Bind recharge trigger
+      document.getElementById('btnShowRechargeFromAlert')?.addEventListener('click', () => {
+        document.getElementById('uploadDropzone').classList.add('hidden');
+        document.getElementById('prepaidRechargeForm').classList.remove('hidden');
+        document.getElementById('rechargeDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('rechargeAmount').value = '';
+      });
+    } else {
+      alertCard.classList.add('hidden');
+    }
+
+    // Details Card -> Recharge History Statement
+    const detailsCardTitle = document.getElementById('detailsCardTitle');
+    const detailsCardDesc = document.getElementById('detailsCardDesc');
+    const billBreakdownList = document.getElementById('billBreakdownList');
+    
+    if (detailsCardTitle) detailsCardTitle.innerHTML = `<i data-lucide="history"></i> Prepaid Recharge History`;
+    if (detailsCardDesc) detailsCardDesc.innerText = 'Recent recharge payments logged for this smart meter';
+
+    if (billBreakdownList) {
+      let rechargeRowsHTML = '';
+      const recharges = prop.recharges || [];
+      if (recharges.length === 0) {
+        rechargeRowsHTML = `
+          <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+            <i data-lucide="receipt" style="width: 28px; height: 28px; margin-bottom: 8px; opacity: 0.6;"></i>
+            <p style="font-size: 13px;">No recharge transactions logged yet.</p>
+          </div>
+        `;
+      } else {
+        recharges.forEach(r => {
+          rechargeRowsHTML += `
+            <div class="breakdown-item" style="padding: 10px 0;">
+              <div style="display: flex; flex-direction: column;">
+                <span>${r.date}</span>
+                <span style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Receipt: ${r.receiptNo || 'N/A'}</span>
+              </div>
+              <strong class="text-green">+₹${r.amount}</strong>
+            </div>
+          `;
+        });
+      }
+      
+      // Append manual log recharge button at the bottom of the history
+      rechargeRowsHTML += `
+        <div style="margin-top: 15px;">
+          <button class="btn btn-outline btn-full btn-sm" id="btnShowRechargeFromHistory">
+            <i data-lucide="plus" style="width: 14px; height: 14px; margin-right: 4px;"></i> Log Recharge Manually
+          </button>
+        </div>
+      `;
+      
+      billBreakdownList.innerHTML = rechargeRowsHTML;
+
+      // Bind manual recharge from history list
+      document.getElementById('btnShowRechargeFromHistory')?.addEventListener('click', () => {
+        document.getElementById('uploadDropzone').classList.add('hidden');
+        document.getElementById('prepaidRechargeForm').classList.remove('hidden');
+        document.getElementById('rechargeDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('rechargeAmount').value = '';
+      });
+    }
+
   } else {
-    document.getElementById('statUnitsCompare').innerText = '1 month loaded';
-    document.getElementById('statAmountCompare').innerText = '1 month loaded';
+    // Postpaid connection layout
+    if (card1Label) card1Label.innerText = 'Units Consumed';
+    if (card2Label) card2Label.innerText = 'Total Bill Amount';
+
+    // Hide manual recharge button & reset demo helper text
+    const btnManual = document.getElementById('btnManualRecharge');
+    if (btnManual) btnManual.classList.add('hidden');
+    const demoHelperText = document.getElementById('demoHelperText');
+    if (demoHelperText) demoHelperText.innerText = 'Want to test the features instantly?';
+
+    // Reset dropzone description
+    const uploadOrText = document.querySelector('.upload-dropzone .upload-text');
+    const uploadLimit = document.querySelector('.upload-dropzone .upload-limit');
+    if (uploadOrText) uploadOrText.innerText = 'Drag & drop PDF bill or screenshot image here';
+    if (uploadLimit) uploadLimit.innerText = 'Supports PDF bills and screenshots (PNG, JPG, JPEG)';
+
+    // Reset uploader titles
+    const uploaderCardTitle = document.getElementById('uploaderCardTitle');
+    const uploaderCardDesc = document.getElementById('uploaderCardDesc');
+    if (uploaderCardTitle) uploaderCardTitle.innerHTML = `<i data-lucide="file-text"></i> Upload Electricity Bill / Screenshot`;
+    if (uploaderCardDesc) uploaderCardDesc.innerText = 'Drag and drop your electricity bill PDF or screenshot image to automatically extract units, monthly trend, and savings opportunities.';
+
+    // Render normal stats
+    document.getElementById('statUnits').innerHTML = `${units} <span class="unit-label">kWh</span>`;
+    document.getElementById('statAmount').innerText = `₹${amount}`;
+
+    // Re-render standard MoM comparisons
+    if (history.length >= 2) {
+      const prev = history[history.length - 2];
+      const unitsChange = ((units - prev.units) / prev.units * 100).toFixed(1);
+      const unitsArrow = units > prev.units ? '↑' : '↓';
+      const unitsClass = units > prev.units ? 'text-red' : 'text-green';
+      document.getElementById('statUnitsCompare').innerHTML = `<span class="${unitsClass}">${unitsArrow} ${Math.abs(unitsChange)}%</span> vs last month`;
+
+      const amountChange = ((amount - prev.amount) / prev.amount * 100).toFixed(1);
+      const amountArrow = amount > prev.amount ? '↑' : '↓';
+      const amountClass = amount > prev.amount ? 'text-red' : 'text-green';
+      document.getElementById('statAmountCompare').innerHTML = `<span class="${amountClass}">${amountArrow} ${Math.abs(amountChange)}%</span> vs last month`;
+    } else {
+      document.getElementById('statUnitsCompare').innerText = '1 month loaded';
+      document.getElementById('statAmountCompare').innerText = '1 month loaded';
+    }
+
+    // Spike Alert Panel (Spike > 20% Mom)
+    let spiked = false;
+    const alertCard = document.getElementById('spikeAlertCard');
+    if (alertCard) {
+      alertCard.className = 'glass-card alert-card hidden'; // reset class
+      alertCard.innerHTML = `
+        <div class="alert-header">
+          <div class="alert-icon bg-red-dim text-red pulsing-red-glow">
+            <i data-lucide="alert-triangle"></i>
+          </div>
+          <div>
+            <h4 class="alert-title text-red">Bill Spike Detected</h4>
+            <span class="alert-subtitle" id="spikeValueText">Consumption increased by 32%</span>
+          </div>
+        </div>
+        <div class="alert-body">
+          <p class="alert-desc">Possible factors causing this abnormal usage:</p>
+          <ul class="alert-list">
+            <li><i data-lucide="snowflake" class="text-cyan"></i> Summer cooling: Heavy AC operation</li>
+            <li><i data-lucide="tv" class="text-purple"></i> New appliances running continuously</li>
+            <li><i data-lucide="droplet" class="text-blue"></i> Water motor/pump left running</li>
+          </ul>
+          <div class="alert-action">
+            <button class="btn btn-link btn-sm" id="viewSimulatorFromAlert">Run "What-If" Simulation <i data-lucide="chevron-right"></i></button>
+          </div>
+        </div>
+      `;
+      
+      // Bind spike alert click
+      document.getElementById('viewSimulatorFromAlert')?.addEventListener('click', () => {
+        const simNav = document.querySelector('.nav-item[data-target="simulator"]');
+        if (simNav) {
+          simNav.click();
+          document.getElementById('simAcHoursSlider').value = 2;
+          updateWhatIfSimulator();
+        }
+      });
+
+      if (history.length >= 2) {
+        const prev = history[history.length - 2];
+        const MoMChange = ((units - prev.units) / prev.units * 100);
+        if (MoMChange >= 20) {
+          spiked = true;
+          alertCard.classList.remove('hidden');
+          const spikeValueText = document.getElementById('spikeValueText');
+          if (spikeValueText) spikeValueText.innerText = `Consumption increased by ${MoMChange.toFixed(0)}% this month`;
+        }
+      }
+      if (!spiked) {
+        alertCard.classList.add('hidden');
+      }
+    }
+
+    // Details Card -> Current Bill Breakdown
+    const detailsCardTitle = document.getElementById('detailsCardTitle');
+    const detailsCardDesc = document.getElementById('detailsCardDesc');
+    const billBreakdownList = document.getElementById('billBreakdownList');
+
+    if (detailsCardTitle) detailsCardTitle.innerHTML = `<i data-lucide="receipt"></i> Current Bill Breakdown`;
+    if (detailsCardDesc) detailsCardDesc.innerText = 'Line-item breakdown of your last uploaded bill';
+
+    if (billBreakdownList) {
+      const energyChg = amount - (latest.fixedCharges || 120) - (latest.taxes || Math.round(amount * 0.1));
+      billBreakdownList.innerHTML = `
+        <div class="breakdown-item">
+          <span>Consumer Number</span>
+          <strong id="bdConsumerNo">${latest.consumerNo || 'N/A'}</strong>
+        </div>
+        <div class="breakdown-item">
+          <span>Billing Period</span>
+          <strong id="bdBillingMonth">${latest.month || 'Current'}</strong>
+        </div>
+        <div class="breakdown-item">
+          <span>Energy Charges (Units Used)</span>
+          <strong id="bdEnergyCharges">₹${energyChg}</strong>
+        </div>
+        <div class="breakdown-item">
+          <span>Fixed/Sanctioned Load Charges</span>
+          <strong id="bdFixedCharges">₹${latest.fixedCharges || 120}</strong>
+        </div>
+        <div class="breakdown-item">
+          <span>Taxes & Duties</span>
+          <strong id="bdTaxes">₹${latest.taxes || Math.round(amount * 0.1)}</strong>
+        </div>
+        <hr class="card-divider">
+        <div class="breakdown-item total-item">
+          <span>Grand Total</span>
+          <span class="total-value text-cyan" id="bdGrandTotal">₹${amount}</span>
+        </div>
+      `;
+    }
   }
 
   // Carbon footprint estimation
@@ -560,30 +882,6 @@ function renderDashboard() {
   document.getElementById('scoreLevel').style.color = scoreColor;
   document.getElementById('scoreFeedback').innerText = feedback;
   document.getElementById('scoreRing').setAttribute('stroke', scoreColor);
-
-  // Spike Alert Panel (Spike > 20% Mom)
-  let spiked = false;
-  if (history.length >= 2) {
-    const prev = history[history.length - 2];
-    const MoMChange = ((units - prev.units) / prev.units * 100);
-    if (MoMChange >= 20) {
-      spiked = true;
-      document.getElementById('spikeAlertCard').classList.remove('hidden');
-      document.getElementById('spikeValueText').innerText = `Consumption increased by ${MoMChange.toFixed(0)}% this month`;
-    }
-  }
-  if (!spiked) {
-    document.getElementById('spikeAlertCard').classList.add('hidden');
-  }
-
-  // Current Bill Breakdown panel
-  document.getElementById('bdConsumerNo').innerText = latest.consumerNo || 'N/A';
-  document.getElementById('bdBillingMonth').innerText = latest.month || 'Current';
-  document.getElementById('bdFixedCharges').innerText = `₹${latest.fixedCharges || 120}`;
-  document.getElementById('bdTaxes').innerText = `₹${latest.taxes || Math.round(amount * 0.1)}`;
-  const energyChg = amount - (latest.fixedCharges || 120) - (latest.taxes || Math.round(amount * 0.1));
-  document.getElementById('bdEnergyCharges').innerText = `₹${energyChg}`;
-  document.getElementById('bdGrandTotal').innerText = `₹${amount}`;
 
   // Load Main Trend Chart
   renderDashboardChart('all');
@@ -833,8 +1131,74 @@ async function handleUploadedBillPDF(file) {
   const dropzone = document.getElementById('uploadDropzone');
   const loader = document.getElementById('parsingLoader');
   const statusText = document.getElementById('parsingStatusText');
+  const ocrPreview = document.getElementById('ocrScannerPreview');
+  const scannerImg = document.getElementById('scannerImg');
 
-  // Toggle visibility loaders
+  // Check if image upload
+  if (file.type.startsWith('image/')) {
+    dropzone.classList.add('hidden');
+    if (ocrPreview) ocrPreview.classList.remove('hidden');
+    
+    const fileReader = new FileReader();
+    fileReader.onload = function() {
+      if (scannerImg) scannerImg.src = this.result;
+      
+      // Simulate OCR scanning
+      setTimeout(() => {
+        if (ocrPreview) ocrPreview.classList.add('hidden');
+        dropzone.classList.remove('hidden');
+        
+        const prop = getActiveProperty();
+        let lastMonthObj = null;
+        let nextMonthName = "Jul 2026";
+        if (prop.history && prop.history.length > 0) {
+          lastMonthObj = prop.history[prop.history.length - 1];
+          const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const parts = lastMonthObj.month.split(' ');
+          const curIndex = monthNames.indexOf(parts[0]);
+          let nextYear = parseInt(parts[1]);
+          let nextIndex = curIndex + 1;
+          if (nextIndex > 11) {
+            nextIndex = 0;
+            nextYear++;
+          }
+          nextMonthName = monthNames[nextIndex] + ' ' + nextYear;
+        }
+        
+        if (prop.billingType === 'prepaid') {
+          // Log recharge from OCR statement
+          const rechargeAmt = Math.round(500 + Math.random() * 1500);
+          const receiptNo = 'RC-' + Math.floor(10000000 + Math.random() * 90000000) + 'A';
+          if (!prop.recharges) prop.recharges = [];
+          if (prop.balance === undefined) prop.balance = 0;
+          
+          prop.recharges.unshift({
+            date: new Date().toISOString().split('T')[0],
+            amount: rechargeAmt,
+            receiptNo: receiptNo
+          });
+          prop.balance += rechargeAmt;
+
+          saveStateToStorage();
+          renderDashboard();
+          updateGlobalHeaderMetrics();
+          
+          alert(`⚡ Recharge Receipt OCR Scan Completed!\nReceipt logged: ₹${rechargeAmt}\nReceipt No: ${receiptNo}\nNew Balance: ₹${prop.balance}`);
+        } else {
+          // Postpaid bill simulated extraction
+          const units = Math.round(300 + Math.random() * 200);
+          const amount = Math.round(units * BASE_RATE + 200);
+          const dummyText = `Consumer No: 109843729\nUnits Billed: ${units} kWh\nTotal Bill Amount: ₹${amount}\nBill Month: ${nextMonthName}`;
+          parseBillTextAndAddRecord(dummyText);
+        }
+        
+      }, 1800); // 1.8s simulation delay
+    };
+    fileReader.readAsDataURL(file);
+    return;
+  }
+
+  // Toggle visibility loaders for standard PDF
   dropzone.classList.add('hidden');
   loader.classList.remove('hidden');
   statusText.innerText = `Reading "${file.name}"...`;
@@ -1590,7 +1954,12 @@ function renderPropertiesSection() {
   appState.properties.forEach(p => {
     const isActive = p.id === appState.selectedPropertyId;
     const latestBill = p.history[p.history.length - 1];
-    const billText = latestBill ? `Last Bill: ₹${latestBill.amount} (${latestBill.month})` : 'No bill history';
+    let billText = '';
+    if (p.billingType === 'prepaid') {
+      billText = `Wallet Balance: ₹${p.balance || 0}`;
+    } else {
+      billText = latestBill ? `Last Bill: ₹${latestBill.amount} (${latestBill.month})` : 'No bill history';
+    }
 
     const card = document.createElement('div');
     card.className = `property-card ${isActive ? 'active-prop' : ''}`;
@@ -1657,10 +2026,13 @@ function handleSaveNewProperty() {
     return;
   }
 
+  const billingType = document.getElementById('propBillingType').value;
+
   const newProp = {
     id: `prop-${Date.now()}`,
     name: name,
     type: type,
+    billingType: billingType,
     sanctionedLoad: load,
     history: [],
     appliances: [
@@ -1668,6 +2040,17 @@ function handleSaveNewProperty() {
       { id: `app-led-${Date.now()}`, name: 'LED Bulbs', icon: 'lightbulb', wattage: 9, quantity: 5, hours: 6 }
     ]
   };
+
+  if (billingType === 'prepaid') {
+    newProp.balance = 1000; // Starting demo balance
+    newProp.dailyBurnRate = 50; // Starting daily burn rate
+    newProp.recharges = [
+      { date: new Date().toISOString().split('T')[0], amount: 1000, receiptNo: `RC-${Math.floor(10000000 + Math.random() * 90000000)}` }
+    ];
+  } else {
+    // Empty history
+    newProp.history = [];
+  }
 
   appState.properties.push(newProp);
   appState.selectedPropertyId = newProp.id;
@@ -1753,6 +2136,29 @@ function processChatbotNLP(query) {
   const normalized = query.toLowerCase();
   const prop = getActiveProperty();
   const history = prop.history;
+
+  // Prepaid balance or recharge queries
+  if (normalized.includes('balance') || normalized.includes('days left') || normalized.includes('recharge') || normalized.includes('burn rate') || normalized.includes('prepaid') || normalized.includes('wallet')) {
+    if (prop.billingType !== 'prepaid') {
+      return `<p><strong>${prop.name}</strong> is currently configured as a <strong>Postpaid</strong> property.</p>
+              <p>Prepaid wallet balances, daily burn rates, and recharge logging are only active for Prepaid properties. You can switch to the <strong>Retail Shop</strong> (prepaid demo property) or create a new property with connection type set to <i>Prepaid</i> under the <strong>Manage Properties</strong> tab.</p>`;
+    }
+    
+    const balance = prop.balance !== undefined ? prop.balance : 0;
+    const daysLeft = prop.dailyBurnRate > 0 ? Math.round(balance / prop.dailyBurnRate) : 0;
+    const lastRecharge = prop.recharges && prop.recharges.length > 0 ? prop.recharges[0] : null;
+    const rechargeInfo = lastRecharge ? `Your last recharge of <strong>₹${lastRecharge.amount}</strong> was on <strong>${lastRecharge.date}</strong>.` : 'No recharge transactions logged.';
+    
+    return `<p>Here is the smart meter prepaid wallet status for <strong>${prop.name}</strong>:</p>
+            <ul>
+              <li><strong>Current Balance:</strong> ₹${balance}</li>
+              <li><strong>Daily Burn Rate:</strong> ~₹${prop.dailyBurnRate || 50}/day</li>
+              <li><strong>Estimated Wallet Life:</strong> <strong>${daysLeft} days</strong></li>
+              <li><strong>Total Recharges:</strong> ${(prop.recharges || []).length} payments logged</li>
+            </ul>
+            <p>${rechargeInfo}</p>
+            <p>💡 To prolong your wallet duration, try adjusting AC hours in the <strong>"What-If" Simulator</strong> or replacing old bulbs with LEDs.</p>`;
+  }
 
   if (!history || history.length === 0) {
     return `<p>I notice you don't have any billing records loaded for <strong>${prop.name}</strong>.</p>

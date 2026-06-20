@@ -173,16 +173,44 @@
             <!-- Left Side: Upload & Quick insights -->
             <div class="dashboard-left-panel">
               <div class="glass-card uploader-card">
-                <h4 class="card-title"><i data-lucide="file-text"></i> Upload Electricity Bill</h4>
-                <p class="card-desc">Drag and drop your electricity bill PDF to automatically extract units, monthly trend, and savings opportunities.</p>
+                <h4 class="card-title" id="uploaderCardTitle"><i data-lucide="file-text"></i> Upload Electricity Bill / Screenshot</h4>
+                <p class="card-desc" id="uploaderCardDesc">Drag and drop your electricity bill PDF or screenshot image to automatically extract units, monthly trend, and savings opportunities.</p>
                 
                 <div class="upload-dropzone" id="uploadDropzone">
-                  <input type="file" id="billFileInput" accept="application/pdf" class="file-input-hidden">
+                  <input type="file" id="billFileInput" accept="application/pdf, image/*" class="file-input-hidden">
                   <i data-lucide="upload-cloud" class="upload-icon"></i>
-                  <span class="upload-text">Drag & drop electricity bill PDF here</span>
+                  <span class="upload-text">Drag & drop PDF bill or screenshot image here</span>
                   <span class="upload-or">or</span>
                   <button class="btn btn-outline" id="browseBtn">Browse File</button>
-                  <span class="upload-limit">Supports PDF bills (e.g., BESCOM, MSEDCL, Tata Power)</span>
+                  <span class="upload-limit">Supports PDF bills and screenshots (PNG, JPG, JPEG)</span>
+                </div>
+                
+                <!-- Prepaid Recharge Form (manual logging) -->
+                <div class="prepaid-recharge-form hidden" id="prepaidRechargeForm">
+                  <div class="form-group" style="margin-bottom: 12px;">
+                    <label for="rechargeAmount" class="form-label">Recharge Amount (₹)</label>
+                    <input type="number" id="rechargeAmount" class="form-input" min="10" placeholder="e.g. 500" required>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 16px;">
+                    <label for="rechargeDate" class="form-label">Recharge Date</label>
+                    <input type="date" id="rechargeDate" class="form-input" required>
+                  </div>
+                  <div class="form-actions" style="margin-top: 10px;">
+                    <button class="btn btn-outline btn-sm" type="button" id="btnCancelRecharge">Cancel</button>
+                    <button class="btn btn-glow btn-sm" type="button" id="btnSaveRecharge">Log Recharge</button>
+                  </div>
+                </div>
+
+                <!-- Image OCR Scanner Preview -->
+                <div class="ocr-scanner-preview hidden" id="ocrScannerPreview">
+                  <div class="preview-img-wrapper">
+                    <img id="scannerImg" src="" alt="Bill Screenshot Preview">
+                    <div class="scanner-line"></div>
+                  </div>
+                  <div class="scanner-status" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; font-size: 12px;">
+                    <div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div>
+                    <span>Scanning screenshot with OCR...</span>
+                  </div>
                 </div>
                 
                 <div class="parsing-loader hidden" id="parsingLoader">
@@ -191,8 +219,11 @@
                 </div>
 
                 <div class="demo-data-helper">
-                  <span>Want to test the features instantly?</span>
-                  <button class="btn btn-glow" id="loadDemoBtn">Load Sample History</button>
+                  <span id="demoHelperText">Want to test the features instantly?</span>
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; width: 100%;">
+                    <button class="btn btn-glow" id="loadDemoBtn">Load Sample History</button>
+                    <button class="btn btn-outline hidden" id="btnManualRecharge">Log Recharge Manually</button>
+                  </div>
                 </div>
               </div>
 
@@ -257,10 +288,10 @@
           <div class="dashboard-bottom-grid">
             <!-- Bill details breakdown -->
             <div class="glass-card details-card">
-              <h4 class="card-title"><i data-lucide="receipt"></i> Current Bill Breakdown</h4>
-              <p class="card-desc">Line-item breakdown of your last uploaded bill</p>
+              <h4 class="card-title" id="detailsCardTitle"><i data-lucide="receipt"></i> Current Bill Breakdown</h4>
+              <p class="card-desc" id="detailsCardDesc">Line-item breakdown of your last uploaded bill</p>
               
-              <div class="bill-breakdown-list">
+              <div class="bill-breakdown-list" id="billBreakdownList">
                 <div class="breakdown-item">
                   <span>Consumer Number</span>
                   <strong id="bdConsumerNo">--</strong>
@@ -711,6 +742,14 @@
                       <option value="apartment">Apartment</option>
                       <option value="house">Independent House</option>
                       <option value="commercial">Shop / Commercial Office</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="propBillingType" class="form-label">Connection Billing Type</label>
+                    <select id="propBillingType" class="form-select">
+                      <option value="postpaid" selected>Postpaid (Monthly Bill)</option>
+                      <option value="prepaid">Prepaid (Smart Recharge Meter)</option>
                     </select>
                   </div>
 
