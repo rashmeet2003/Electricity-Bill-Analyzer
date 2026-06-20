@@ -849,7 +849,9 @@ async function handleUploadedBillPDF(file) {
         const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
         
         let fullText = '';
-        for (let i = 1; i <= pdf.numPages; i++) {
+        // Only parse the first 2 pages (standard bills are 1-2 pages; prevents hanging on large PDFs)
+        const pagesToParse = Math.min(2, pdf.numPages);
+        for (let i = 1; i <= pagesToParse; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
           const pageText = content.items.map(item => item.str).join(' ');
@@ -857,12 +859,12 @@ async function handleUploadedBillPDF(file) {
         }
         
         statusText.innerText = 'Analyzing billing parameters...';
-        // Delay to make parsing look thorough
+        // Reduced delay for faster user feedback
         setTimeout(() => {
           parseBillTextAndAddRecord(fullText);
           loader.classList.add('hidden');
           dropzone.classList.remove('hidden');
-        }, 1200);
+        }, 200);
 
       } catch (err) {
         console.error('PDF JS Extract Error:', err);
