@@ -3,14 +3,8 @@
  * Client-Side JavaScript Application with LocalStorage Persistence
  */
 
-// Initialize PDF.js worker with CORS bypass
-try {
-  const workerBlob = new Blob([
-    "importScripts('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js');"
-  ], { type: 'application/javascript' });
-  pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(workerBlob);
-} catch (e) {
-  console.warn("Failed to initialize PDF.js worker with blob. Falling back to CDN URL.", e);
+// Initialize PDF.js worker
+if (typeof pdfjsLib !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 }
 
@@ -1427,9 +1421,15 @@ function parseBillTextAndAddRecord(text) {
 
   // Fallback engine for demos if uploading a random PDF
   // We calculate next month in sequence with random realistic variables
+  // Fallback engine for missing units or amount
   if (!units || !amount) {
     console.log("Regex parameters failed. Generating simulated fallback billing card.");
-    
+    units = Math.round(300 + Math.random() * 200);
+    amount = Math.round(units * BASE_RATE + 200);
+  }
+
+  // Fallback engine for missing month
+  if (!monthStr) {
     // Pick last month in history
     let lastMonthObj = null;
     let nextMonthName = "Jul 2026";
@@ -1444,12 +1444,10 @@ function parseBillTextAndAddRecord(text) {
         nextIndex = 0;
         nextYear++;
       }
-      nextMonthName = monthNames[nextIndex] + ' ' + nextYear;
+      if (curIndex !== -1 && !isNaN(nextYear)) {
+        nextMonthName = monthNames[nextIndex] + ' ' + nextYear;
+      }
     }
-
-    // Generate random realistic billing statistics
-    units = Math.round(300 + Math.random() * 200);
-    amount = Math.round(units * BASE_RATE + 200);
     monthStr = nextMonthName;
   }
 
