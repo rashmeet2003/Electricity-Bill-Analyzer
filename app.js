@@ -3,8 +3,44 @@
  * Client-Side JavaScript Application with LocalStorage Persistence
  */
 
-// Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+// Initialize PDF.js worker with CORS bypass
+try {
+  const workerBlob = new Blob([
+    "importScripts('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js');"
+  ], { type: 'application/javascript' });
+  pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(workerBlob);
+} catch (e) {
+  console.warn("Failed to initialize PDF.js worker with blob. Falling back to CDN URL.", e);
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+}
+
+// Sample Template Data (not saved persistently unless user overrides)
+const SAMPLE_HISTORY = {
+  'prop-home': [
+    { month: 'Jan 2026', units: 180, amount: 1260, fixedCharges: 120, taxes: 108, consumerNo: '109843729' },
+    { month: 'Feb 2026', units: 195, amount: 1365, fixedCharges: 120, taxes: 117, consumerNo: '109843729' },
+    { month: 'Mar 2026', units: 220, amount: 1540, fixedCharges: 120, taxes: 132, consumerNo: '109843729' },
+    { month: 'Apr 2026', units: 310, amount: 2480, fixedCharges: 120, taxes: 248, consumerNo: '109843729' },
+    { month: 'May 2026', units: 410, amount: 3690, fixedCharges: 120, taxes: 369, consumerNo: '109843729' },
+    { month: 'Jun 2026', units: 540, amount: 5130, fixedCharges: 120, taxes: 513, consumerNo: '109843729' }
+  ],
+  'prop-shop': [
+    { month: 'Jan 2026', units: 450, amount: 4050, fixedCharges: 350, taxes: 360, consumerNo: '540928172' },
+    { month: 'Feb 2026', units: 480, amount: 4320, fixedCharges: 350, taxes: 384, consumerNo: '540928172' },
+    { month: 'Mar 2026', units: 520, amount: 4680, fixedCharges: 350, taxes: 416, consumerNo: '540928172' },
+    { month: 'Apr 2026', units: 680, amount: 6800, fixedCharges: 350, taxes: 680, consumerNo: '540928172' },
+    { month: 'May 2026', units: 820, amount: 8200, fixedCharges: 350, taxes: 820, consumerNo: '540928172' },
+    { month: 'Jun 2026', units: 980, amount: 9800, fixedCharges: 350, taxes: 980, consumerNo: '540928172' }
+  ]
+};
+
+const SAMPLE_RECHARGES = {
+  'prop-shop': [
+    { date: '2026-06-15', amount: 1000, receiptNo: 'RC-54092817A' },
+    { date: '2026-06-01', amount: 2000, receiptNo: 'RC-54092811B' },
+    { date: '2026-05-18', amount: 1500, receiptNo: 'RC-54092795C' }
+  ]
+};
 
 // Default State Configuration
 const DEFAULT_PROPERTIES = [
@@ -14,14 +50,7 @@ const DEFAULT_PROPERTIES = [
     type: 'apartment',
     billingType: 'postpaid',
     sanctionedLoad: 3, // kW
-    history: [
-      { month: 'Jan 2026', units: 180, amount: 1260, fixedCharges: 120, taxes: 108, consumerNo: '109843729' },
-      { month: 'Feb 2026', units: 195, amount: 1365, fixedCharges: 120, taxes: 117, consumerNo: '109843729' },
-      { month: 'Mar 2026', units: 220, amount: 1540, fixedCharges: 120, taxes: 132, consumerNo: '109843729' },
-      { month: 'Apr 2026', units: 310, amount: 2480, fixedCharges: 120, taxes: 248, consumerNo: '109843729' },
-      { month: 'May 2026', units: 410, amount: 3690, fixedCharges: 120, taxes: 369, consumerNo: '109843729' },
-      { month: 'Jun 2026', units: 540, amount: 5130, fixedCharges: 120, taxes: 513, consumerNo: '109843729' }
-    ],
+    history: [],
     appliances: [
       { id: 'app-ac', name: 'Air Conditioner', icon: 'snowflake', wattage: 1500, quantity: 1, hours: 8 },
       { id: 'app-fan', name: 'Ceiling Fan', icon: 'wind', wattage: 75, quantity: 4, hours: 12 },
@@ -37,21 +66,10 @@ const DEFAULT_PROPERTIES = [
     type: 'commercial',
     billingType: 'prepaid',
     sanctionedLoad: 8, // kW
-    balance: 420, // ₹ current balance
+    balance: 0, // start with 0
     dailyBurnRate: 85, // ₹ average burn per day
-    recharges: [
-      { date: '2026-06-15', amount: 1000, receiptNo: 'RC-54092817A' },
-      { date: '2026-06-01', amount: 2000, receiptNo: 'RC-54092811B' },
-      { date: '2026-05-18', amount: 1500, receiptNo: 'RC-54092795C' }
-    ],
-    history: [
-      { month: 'Jan 2026', units: 450, amount: 4050, fixedCharges: 350, taxes: 360, consumerNo: '540928172' },
-      { month: 'Feb 2026', units: 480, amount: 4320, fixedCharges: 350, taxes: 384, consumerNo: '540928172' },
-      { month: 'Mar 2026', units: 520, amount: 4680, fixedCharges: 350, taxes: 416, consumerNo: '540928172' },
-      { month: 'Apr 2026', units: 680, amount: 6800, fixedCharges: 350, taxes: 680, consumerNo: '540928172' },
-      { month: 'May 2026', units: 820, amount: 8200, fixedCharges: 350, taxes: 820, consumerNo: '540928172' },
-      { month: 'Jun 2026', units: 980, amount: 9800, fixedCharges: 350, taxes: 980, consumerNo: '540928172' }
-    ],
+    recharges: [],
+    history: [],
     appliances: [
       { id: 'app-ac-comm', name: 'Commercial AC', icon: 'snowflake', wattage: 2200, quantity: 2, hours: 10 },
       { id: 'app-lighting', name: 'Shop Lighting', icon: 'lightbulb', wattage: 15, quantity: 20, hours: 12 },
@@ -122,7 +140,22 @@ function initializeDefaultState() {
 }
 
 function saveStateToStorage() {
-  localStorage.setItem('electra_insight_state', JSON.stringify(appState));
+  // Deep clone appState to avoid mutating the in-memory state
+  const stateClone = JSON.parse(JSON.stringify(appState));
+  
+  // Filter out any temporary demo data from the persisted storage
+  if (stateClone.properties) {
+    stateClone.properties.forEach(p => {
+      if (p.isDemo) {
+        p.history = [];
+        p.recharges = [];
+        p.balance = 0;
+        delete p.isDemo;
+      }
+    });
+  }
+  
+  localStorage.setItem('electra_insight_state', JSON.stringify(stateClone));
 }
 
 function getActiveProperty() {
@@ -463,6 +496,14 @@ function initializeUI() {
       const prop = getActiveProperty();
       const receiptNo = 'RC-' + Math.floor(10000000 + Math.random() * 90000000) + 'A';
       
+      // Wipe demo history if any
+      if (prop.isDemo) {
+        prop.history = [];
+        prop.recharges = [];
+        prop.balance = 0;
+        delete prop.isDemo;
+      }
+      
       if (!prop.recharges) {
         prop.recharges = [];
       }
@@ -552,6 +593,12 @@ function renderDashboard() {
   const history = prop.history;
 
   if (!history || history.length === 0) {
+    // Destroy trend chart instance if it exists to clear the old graph
+    if (trendChartInstance) {
+      trendChartInstance.destroy();
+      trendChartInstance = null;
+    }
+
     // Show empty states
     document.getElementById('statUnits').innerHTML = `-- <span class="unit-label">kWh</span>`;
     document.getElementById('statUnitsCompare').innerText = 'No history loaded';
@@ -564,6 +611,10 @@ function renderDashboard() {
     document.getElementById('scoreLevel').innerText = 'Calculating';
     document.getElementById('scoreFeedback').innerText = 'Upload a bill or load sample history';
     
+    document.getElementById('avgCostPerUnit').innerText = '--';
+    document.getElementById('peakMonthText').innerText = '--';
+    document.getElementById('nextMonthPrediction').innerText = '--';
+    
     document.getElementById('spikeAlertCard').classList.add('hidden');
     document.getElementById('smartRecommendationsContainer').innerHTML = `
       <div class="rec-empty-state">
@@ -571,6 +622,17 @@ function renderDashboard() {
         <span>No recommendations. Load sample history below.</span>
       </div>
     `;
+
+    const billBreakdownList = document.getElementById('billBreakdownList');
+    if (billBreakdownList) {
+      billBreakdownList.innerHTML = `
+        <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+          <i data-lucide="receipt" style="width: 28px; height: 28px; margin-bottom: 8px; opacity: 0.6;"></i>
+          <p style="font-size: 13px;">No history loaded. Upload a bill or screenshot above.</p>
+        </div>
+      `;
+    }
+
     lucide.createIcons();
     return;
   }
@@ -1107,21 +1169,30 @@ function generateRecommendations(property) {
    ---------------------------------------------------- */
 function loadDemoHistory() {
   const prop = getActiveProperty();
-  // Populate history from static default template
+  
+  // Populate history from static sample templates
+  prop.history = JSON.parse(JSON.stringify(SAMPLE_HISTORY[prop.id] || []));
   const defaultProp = DEFAULT_PROPERTIES.find(p => p.id === prop.id) || DEFAULT_PROPERTIES[0];
-  prop.history = JSON.parse(JSON.stringify(defaultProp.history));
   prop.appliances = JSON.parse(JSON.stringify(defaultProp.appliances));
   
-  saveStateToStorage();
+  if (prop.billingType === 'prepaid') {
+    prop.recharges = JSON.parse(JSON.stringify(SAMPLE_RECHARGES[prop.id] || []));
+    prop.balance = 420; // reset to sample balance
+  }
+
+  // Mark this property as currently displaying demo data
+  prop.isDemo = true;
   
   // Re-unlock some initial gamification achievements
   appState.gamification.points += 50;
+  
+  // Save state (which strips out demo data from localStorage, but updates points in localStorage!)
   saveStateToStorage();
 
   renderDashboard();
   updateGlobalHeaderMetrics();
   
-  alert('Sample billing records and appliance parameters loaded successfully for: ' + prop.name);
+  alert('Sample billing records and appliance parameters loaded successfully for: ' + prop.name + '\n(Note: This sample data is temporary and will be cleared when you close or reload the website.)');
 }
 
 /* Parses local PDF client-side using PDF.js and tries to extract billing items */
@@ -1169,6 +1240,14 @@ async function handleUploadedBillPDF(file) {
           // Log recharge from OCR statement
           const rechargeAmt = Math.round(500 + Math.random() * 1500);
           const receiptNo = 'RC-' + Math.floor(10000000 + Math.random() * 90000000) + 'A';
+          
+          if (prop.isDemo) {
+            prop.history = [];
+            prop.recharges = [];
+            prop.balance = 0;
+            delete prop.isDemo;
+          }
+
           if (!prop.recharges) prop.recharges = [];
           if (prop.balance === undefined) prop.balance = 0;
           
@@ -1225,9 +1304,15 @@ async function handleUploadedBillPDF(file) {
         statusText.innerText = 'Analyzing billing parameters...';
         // Reduced delay for faster user feedback
         setTimeout(() => {
-          parseBillTextAndAddRecord(fullText);
-          loader.classList.add('hidden');
-          dropzone.classList.remove('hidden');
+          try {
+            parseBillTextAndAddRecord(fullText);
+          } catch (e) {
+            console.error('Error during parsing/storing record:', e);
+            alert('Failed to parse bill details. Please verify your PDF format.');
+          } finally {
+            loader.classList.add('hidden');
+            dropzone.classList.remove('hidden');
+          }
         }, 200);
 
       } catch (err) {
@@ -1254,6 +1339,16 @@ function showParsingError() {
 /* Helper to parse text using regex rules and push to property history */
 function parseBillTextAndAddRecord(text) {
   console.log("PDF parsed raw text length:", text.length);
+  
+  const prop = getActiveProperty();
+  
+  // Wipe demo history first if any upon actual user action
+  if (prop.isDemo) {
+    prop.history = [];
+    prop.recharges = [];
+    prop.balance = 0;
+    delete prop.isDemo;
+  }
   
   // Normalize text casing and space
   const normalized = text.toLowerCase().replace(/\s+/g, ' ');
@@ -1332,7 +1427,6 @@ function parseBillTextAndAddRecord(text) {
 
   // Fallback engine for demos if uploading a random PDF
   // We calculate next month in sequence with random realistic variables
-  const prop = getActiveProperty();
   if (!units || !amount) {
     console.log("Regex parameters failed. Generating simulated fallback billing card.");
     
@@ -1546,6 +1640,9 @@ function recalculateApplianceTotals() {
     const pct = Math.round((totalUnits / latestBill.units) * 100);
     document.getElementById('calcBillPct').innerText = `${pct}%`;
     document.getElementById('calcBillPctFill').style.width = `${Math.min(100, pct)}%`;
+  } else {
+    document.getElementById('calcBillPct').innerText = '0%';
+    document.getElementById('calcBillPctFill').style.width = '0%';
   }
 
   // Draw or update Donut Chart
