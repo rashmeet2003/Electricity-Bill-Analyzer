@@ -557,6 +557,9 @@ function initializeUI() {
 function updateGlobalHeaderMetrics() {
   const prop = getActiveProperty();
   
+  // Dynamically calculate and update the saving streak based on history
+  updateStreakValue(prop);
+  
   // Streak
   document.getElementById('streakCount').innerText = `${appState.gamification.streak} Months`;
   
@@ -609,6 +612,10 @@ function computeEnergyScore(property) {
    ---------------------------------------------------- */
 function renderDashboard() {
   const prop = getActiveProperty();
+  
+  // Dynamically calculate and update the saving streak based on history
+  updateStreakValue(prop);
+  
   const history = prop.history;
 
   if (!history || history.length === 0) {
@@ -755,14 +762,19 @@ function renderDashboard() {
           </div>
         `;
       } else {
-        recharges.forEach(r => {
+        recharges.forEach((r, idx) => {
           rechargeRowsHTML += `
-            <div class="breakdown-item" style="padding: 10px 0;">
+            <div class="breakdown-item" style="padding: 10px 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05);">
               <div style="display: flex; flex-direction: column;">
                 <span>${r.date}</span>
                 <span style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Receipt: ${r.receiptNo || 'N/A'}</span>
               </div>
-              <strong class="text-green">+₹${r.amount}</strong>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <strong class="text-green">+₹${r.amount}</strong>
+                <button class="delete-recharge-btn btn-icon-only" data-idx="${idx}" style="background: none; border: none; color: var(--neon-red); cursor: pointer; opacity: 0.7; padding: 4px; transition: opacity 0.2s;" title="Delete this recharge">
+                  <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                </button>
+              </div>
             </div>
           `;
         });
@@ -785,6 +797,18 @@ function renderDashboard() {
         document.getElementById('prepaidRechargeForm').classList.remove('hidden');
         document.getElementById('rechargeDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('rechargeAmount').value = '';
+      });
+
+      // Bind delete click handlers
+      const deleteRechargeButtons = billBreakdownList.querySelectorAll('.delete-recharge-btn');
+      deleteRechargeButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idxToDelete = parseInt(btn.getAttribute('data-idx'));
+          if (confirm(`Are you sure you want to delete this recharge record?`)) {
+            deletePrepaidRechargeRecord(prop.id, idxToDelete);
+          }
+        });
       });
     }
 
@@ -895,7 +919,7 @@ function renderDashboard() {
 
     if (billBreakdownList) {
       const energyChg = amount - (latest.fixedCharges || 120) - (latest.taxes || Math.round(amount * 0.1));
-      billBreakdownList.innerHTML = `
+      let html = `
         <div class="breakdown-item">
           <span>Consumer Number</span>
           <strong id="bdConsumerNo">${latest.consumerNo || 'N/A'}</strong>
@@ -922,6 +946,48 @@ function renderDashboard() {
           <span class="total-value text-cyan" id="bdGrandTotal">₹${amount}</span>
         </div>
       `;
+
+      // Append list of all billing records with delete button
+      html += `
+        <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+          <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.5px; display: block; margin-bottom: 8px;">Delete History Bills</span>
+          <div style="max-height: 150px; overflow-y: auto; padding-right: 5px;">
+      `;
+
+      // Display newest bills first
+      const sortedHistory = [...history].reverse();
+      sortedHistory.forEach(h => {
+        html += `
+          <div class="breakdown-item" style="padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; flex-direction: column;">
+              <span style="font-size: 13px; font-weight: 500;">${h.month}</span>
+              <span style="font-size: 11px; color: var(--text-secondary);">${h.units} kWh • ₹${h.amount}</span>
+            </div>
+            <button class="delete-bill-btn btn-icon-only" data-month="${h.month}" style="background: none; border: none; color: var(--neon-red); cursor: pointer; opacity: 0.7; padding: 4px; transition: opacity 0.2s;" title="Delete this bill">
+              <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+            </button>
+          </div>
+        `;
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+
+      billBreakdownList.innerHTML = html;
+
+      // Bind delete click handlers
+      const deleteButtons = billBreakdownList.querySelectorAll('.delete-bill-btn');
+      deleteButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const monthToDelete = btn.getAttribute('data-month');
+          if (confirm(`Are you sure you want to delete the billing record for ${monthToDelete}?`)) {
+            deletePostpaidBillRecord(prop.id, monthToDelete);
+          }
+        });
+      });
     }
   }
 
@@ -1244,21 +1310,7 @@ async function handleUploadedBillPDF(file) {
         dropzone.classList.remove('hidden');
         
         const prop = getActiveProperty();
-        let lastMonthObj = null;
-        let nextMonthName = "Jul 2026";
-        if (prop.history && prop.history.length > 0) {
-          lastMonthObj = prop.history[prop.history.length - 1];
-          const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-          const parts = lastMonthObj.month.split(' ');
-          const curIndex = monthNames.indexOf(parts[0]);
-          let nextYear = parseInt(parts[1]);
-          let nextIndex = curIndex + 1;
-          if (nextIndex > 11) {
-            nextIndex = 0;
-            nextYear++;
-          }
-          nextMonthName = monthNames[nextIndex] + ' ' + nextYear;
-        }
+        const nextMonthName = getNextAvailablePastMonth(prop);
         
         if (prop.billingType === 'prepaid') {
           // Log recharge from OCR statement
@@ -1370,6 +1422,92 @@ function showParsingError(err) {
   alert(msg);
 }
 
+/* Helper to calculate closest past or present month that does not exist in history */
+function getNextAvailablePastMonth(prop) {
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const currentDate = new Date();
+  let checkYear = currentDate.getFullYear();
+  let checkMonthIdx = currentDate.getMonth(); // 0-indexed
+  
+  // Look back up to 24 months to find a gap
+  for (let i = 0; i < 24; i++) {
+    const monthStr = monthNames[checkMonthIdx] + ' ' + checkYear;
+    const exists = prop.history && prop.history.some(h => h.month.toLowerCase() === monthStr.toLowerCase());
+    if (!exists) {
+      return monthStr;
+    }
+    // Go backwards
+    checkMonthIdx--;
+    if (checkMonthIdx < 0) {
+      checkMonthIdx = 11;
+      checkYear--;
+    }
+  }
+  
+  // Absolute fallback if everything is filled
+  return monthNames[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
+}
+
+/* Helper to update saving streak dynamically based on consecutive months with lower/equal consumption */
+function updateStreakValue(prop) {
+  if (!prop.history || prop.history.length < 2) {
+    if (prop.isDemo) {
+      appState.gamification.streak = 3;
+    } else {
+      appState.gamification.streak = 0;
+    }
+    return;
+  }
+  
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const sorted = [...prop.history].sort((a, b) => {
+    const partsA = a.month.split(' ');
+    const partsB = b.month.split(' ');
+    const yearDiff = parseInt(partsA[1]) - parseInt(partsB[1]);
+    if (yearDiff !== 0) return yearDiff;
+    return monthNames.indexOf(partsA[0]) - monthNames.indexOf(partsB[0]);
+  });
+  
+  let streak = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].units <= sorted[i - 1].units) {
+      streak++;
+    } else {
+      streak = 0;
+    }
+  }
+  
+  appState.gamification.streak = streak;
+}
+
+/* Deletion handler for postpaid billing records */
+function deletePostpaidBillRecord(propertyId, month) {
+  const property = appState.properties.find(p => p.id === propertyId);
+  if (property) {
+    property.history = property.history.filter(h => h.month.toLowerCase() !== month.toLowerCase());
+    saveStateToStorage();
+    renderDashboard();
+    updateGlobalHeaderMetrics();
+    alert(`Deleted billing record for ${month}.`);
+  }
+}
+
+/* Deletion handler for prepaid recharge transactions */
+function deletePrepaidRechargeRecord(propertyId, index) {
+  const property = appState.properties.find(p => p.id === propertyId);
+  if (property && property.recharges) {
+    const deletedRecharge = property.recharges[index];
+    if (deletedRecharge) {
+      property.recharges.splice(index, 1);
+      property.balance = Math.max(0, property.balance - deletedRecharge.amount);
+      saveStateToStorage();
+      renderDashboard();
+      updateGlobalHeaderMetrics();
+      alert(`Deleted recharge record of ₹${deletedRecharge.amount}.`);
+    }
+  }
+}
+
 /* Helper to parse text using regex rules and push to property history */
 function parseBillTextAndAddRecord(text) {
   console.log("PDF parsed raw text length:", text.length);
@@ -1470,36 +1608,56 @@ function parseBillTextAndAddRecord(text) {
 
   // Fallback engine for missing month
   if (!monthStr) {
-    // Pick last month in history
-    let lastMonthObj = null;
-    let nextMonthName = "Jul 2026";
-    if (prop.history && prop.history.length > 0) {
-      lastMonthObj = prop.history[prop.history.length - 1];
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const parts = lastMonthObj.month.split(' ');
-      const curIndex = monthNames.indexOf(parts[0]);
-      let nextYear = parseInt(parts[1]);
-      let nextIndex = curIndex + 1;
-      if (nextIndex > 11) {
-        nextIndex = 0;
-        nextYear++;
-      }
-      if (curIndex !== -1 && !isNaN(nextYear)) {
-        nextMonthName = monthNames[nextIndex] + ' ' + nextYear;
-      }
+    monthStr = getNextAvailablePastMonth(prop);
+  }
+
+  // Real-time tracking check: prevent future month bills
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonthIdx = currentDate.getMonth(); // 0-indexed
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  
+  const parts = monthStr.split(' ');
+  const billMonthIdx = monthNames.indexOf(parts[0]);
+  const billYear = parseInt(parts[1]);
+  
+  let isFuture = false;
+  if (!isNaN(billYear)) {
+    if (billYear > currentYear) {
+      isFuture = true;
+    } else if (billYear === currentYear && billMonthIdx > currentMonthIdx) {
+      isFuture = true;
     }
-    monthStr = nextMonthName;
+  }
+  
+  if (isFuture) {
+    alert(`⚠️ Access Denied: Cannot add bill for a future period (${monthStr}).\nOnly present or past month bills can be uploaded.\n(Current Month: ${monthNames[currentMonthIdx]} ${currentYear})`);
+    return;
+  }
+
+  // Duplicate Check: exact same month, units, and amount
+  const isDuplicate = prop.history.some(h => 
+    h.month.toLowerCase() === monthStr.toLowerCase() && 
+    h.units === units && 
+    h.amount === amount
+  );
+  if (isDuplicate) {
+    alert(`⚠️ Duplicate Bill Detected!\nA billing record for ${monthStr} with ${units} kWh and ₹${amount} already exists in your history. Upload ignored.`);
+    return;
+  }
+
+  // Handle month overwrite if same month but different units/amount
+  const exists = prop.history.some(h => h.month.toLowerCase() === monthStr.toLowerCase());
+  if (exists) {
+    if (confirm(`A billing record already exists for ${monthStr} with different parameters.\nWould you like to overwrite it with this new bill?`)) {
+      prop.history = prop.history.filter(h => h.month.toLowerCase() !== monthStr.toLowerCase());
+    } else {
+      return; // Cancel upload
+    }
   }
 
   taxes = Math.round(amount * 0.1);
   fixedCharges = prop.type === 'commercial' ? 350 : 120;
-
-  // Ensure record is not duplicate
-  const exists = prop.history.some(h => h.month.toLowerCase() === monthStr.toLowerCase());
-  if (exists) {
-    alert(`A billing record already exists for ${monthStr}. Overriding with updated parameters.`);
-    prop.history = prop.history.filter(h => h.month.toLowerCase() !== monthStr.toLowerCase());
-  }
 
   const record = {
     month: monthStr,
@@ -2009,6 +2167,8 @@ function renderRoiTimelineChart(upfrontCost, annualSavings) {
    6. GAMIFICATION VIEW CONTROLLER
    ---------------------------------------------------- */
 function renderGamificationSection() {
+  const prop = getActiveProperty();
+  updateStreakValue(prop);
   const gam = appState.gamification;
 
   // Streak & Points UI
