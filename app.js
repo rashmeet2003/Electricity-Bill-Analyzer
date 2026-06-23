@@ -3,10 +3,35 @@
  * Client-Side JavaScript Application with LocalStorage Persistence
  */
 
-// Initialize PDF.js worker
-if (typeof pdfjsLib !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+// Initialize PDF.js worker using a Blob URL to avoid cross-origin (CORS) worker security blocks
+let pdfWorkerPromise = null;
+
+function initPdfWorker() {
+  if (typeof pdfjsLib === 'undefined') return Promise.resolve();
+  if (pdfWorkerPromise) return pdfWorkerPromise;
+  
+  pdfWorkerPromise = (async () => {
+    try {
+      console.log('Fetching PDF.js worker from CDN to create blob...');
+      const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+      const response = await fetch(workerUrl);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const workerScript = await response.text();
+      const blob = new Blob([workerScript], { type: 'application/javascript' });
+      const blobUrl = URL.createObjectURL(blob);
+      pdfjsLib.GlobalWorkerOptions.workerSrc = blobUrl;
+      console.log('PDF.js worker initialized successfully via Blob URL:', blobUrl);
+    } catch (err) {
+      console.error('Failed to initialize PDF.js worker via Blob URL, falling back to direct CDN:', err);
+      // Fallback directly to the CDN worker URL
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    }
+  })();
+  return pdfWorkerPromise;
 }
+
+// Start fetching/initializing the worker immediately
+initPdfWorker();
 
 // Sample Template Data (not saved persistently unless user overrides)
 const SAMPLE_HISTORY = {
@@ -1193,6 +1218,11 @@ function loadDemoHistory() {
 async function handleUploadedBillPDF(file) {
   if (!file) return;
 
+  if (typeof pdfjsLib === 'undefined') {
+    alert('PDF parsing library (PDF.js) is not loaded. Please check your internet connection or reload the page.');
+    return;
+  }
+
   const dropzone = document.getElementById('uploadDropzone');
   const loader = document.getElementById('parsingLoader');
   const statusText = document.getElementById('parsingStatusText');
@@ -1274,9 +1304,14 @@ async function handleUploadedBillPDF(file) {
   // Toggle visibility loaders for standard PDF
   dropzone.classList.add('hidden');
   loader.classList.remove('hidden');
-  statusText.innerText = `Reading "${file.name}"...`;
+  statusText.innerText = 'Initializing PDF reader...';
 
   try {
+    // Ensure worker is fully loaded from CDN and converted to Blob URL
+    await initPdfWorker();
+    
+    statusText.innerText = `Reading "${file.name}"...`;
+    
     const fileReader = new FileReader();
     fileReader.onload = async function() {
       try {
@@ -1291,7 +1326,7 @@ async function handleUploadedBillPDF(file) {
         for (let i = 1; i <= pagesToParse; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
-          const pageText = content.items.map(item => item.str).join(' ');
+          const pageText = (content.items || []).map(item => item ? item.str : '').join(' ');
           fullText += pageText + '\n';
         }
         
@@ -1311,23 +1346,28 @@ async function handleUploadedBillPDF(file) {
 
       } catch (err) {
         console.error('PDF JS Extract Error:', err);
-        showParsingError();
+        showParsingError(err);
       }
     };
     fileReader.readAsArrayBuffer(file);
 
   } catch (err) {
     console.error('File Read Error:', err);
-    showParsingError();
+    showParsingError(err);
   }
 }
 
-function showParsingError() {
+function showParsingError(err) {
   const dropzone = document.getElementById('uploadDropzone');
   const loader = document.getElementById('parsingLoader');
   loader.classList.add('hidden');
   dropzone.classList.remove('hidden');
-  alert('Failed to read PDF. Please ensure it is a valid PDF file.');
+  
+  let msg = 'Failed to read PDF. Please ensure it is a valid PDF file.';
+  if (err && err.message) {
+    msg += '\n\nDetails: ' + err.message;
+  }
+  alert(msg);
 }
 
 /* Helper to parse text using regex rules and push to property history */
