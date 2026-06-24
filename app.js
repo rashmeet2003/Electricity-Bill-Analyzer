@@ -115,6 +115,7 @@ const DEFAULT_GAMIFICATION = {
 };
 
 // Global App State
+let currentUser = null;
 let appState = {
   properties: [],
   selectedPropertyId: '',
@@ -133,7 +134,14 @@ const BASE_RATE = 8.5; // ₹ per kWh average
    CORE STORAGE SYNC
    ---------------------------------------------------- */
 function loadStateFromStorage() {
-  const stored = localStorage.getItem('electra_insight_state');
+  currentUser = localStorage.getItem('electra_current_user');
+  if (!currentUser) {
+    showAuthScreen();
+    return;
+  }
+  
+  hideAuthScreen();
+  const stored = localStorage.getItem(`electra_state_${currentUser}`);
   if (stored) {
     try {
       appState = JSON.parse(stored);
@@ -159,6 +167,8 @@ function initializeDefaultState() {
 }
 
 function saveStateToStorage() {
+  if (!currentUser) return;
+  
   // Deep clone appState to avoid mutating the in-memory state
   const stateClone = JSON.parse(JSON.stringify(appState));
   
@@ -174,10 +184,11 @@ function saveStateToStorage() {
     });
   }
   
-  localStorage.setItem('electra_insight_state', JSON.stringify(stateClone));
+  localStorage.setItem(`electra_state_${currentUser}`, JSON.stringify(stateClone));
 }
 
 function getActiveProperty() {
+  if (!appState.properties || appState.properties.length === 0) return null;
   return appState.properties.find(p => p.id === appState.selectedPropertyId) || appState.properties[0];
 }
 
@@ -227,9 +238,161 @@ function toggleTheme() {
 }
 
 /* ----------------------------------------------------
+   AUTHENTICATION SYSTEM & SESSION MANAGERS
+   ---------------------------------------------------- */
+let authMode = 'login'; // 'login' or 'register'
+
+function showAuthScreen() {
+  const overlay = document.getElementById('authOverlay');
+  const appContainer = document.querySelector('.app-container');
+  if (overlay) overlay.classList.remove('hidden');
+  if (appContainer) appContainer.classList.add('hidden');
+}
+
+function hideAuthScreen() {
+  const overlay = document.getElementById('authOverlay');
+  const appContainer = document.querySelector('.app-container');
+  if (overlay) overlay.classList.add('hidden');
+  if (appContainer) appContainer.classList.remove('hidden');
+}
+
+function initAuthSystem() {
+  const tabLogin = document.getElementById('tabLoginBtn');
+  const tabRegister = document.getElementById('tabRegisterBtn');
+  const authForm = document.getElementById('authForm');
+  const submitBtn = document.getElementById('authSubmitBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  
+  if (tabLogin && tabRegister) {
+    tabLogin.addEventListener('click', () => {
+      tabLogin.classList.add('active');
+      tabRegister.classList.remove('active');
+      submitBtn.innerText = 'Sign In';
+      authMode = 'login';
+      document.getElementById('authError').classList.add('hidden');
+    });
+    
+    tabRegister.addEventListener('click', () => {
+      tabRegister.classList.add('active');
+      tabLogin.classList.remove('active');
+      submitBtn.innerText = 'Create Account';
+      authMode = 'register';
+      document.getElementById('authError').classList.add('hidden');
+    });
+  }
+  
+  if (authForm) {
+    authForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleAuthSubmit();
+    });
+  }
+  
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      handleLogout();
+    });
+  }
+}
+
+function handleAuthSubmit() {
+  const usernameInput = document.getElementById('authUsername');
+  const passwordInput = document.getElementById('authPassword');
+  const username = usernameInput.value.trim().toLowerCase();
+  const password = passwordInput.value;
+  
+  if (!username || !password) {
+    showAuthError('Please enter both username and password.');
+    return;
+  }
+  
+  let users = [];
+  try {
+    const storedUsers = localStorage.getItem('electra_users');
+    if (storedUsers) users = JSON.parse(storedUsers);
+  } catch (e) {
+    console.error('Failed to parse users database:', e);
+  }
+  
+  if (authMode === 'login') {
+    const user = users.find(u => u.username === username);
+    if (!user || user.password !== password) {
+      showAuthError('Invalid username or password.');
+      return;
+    }
+    
+    currentUser = username;
+    localStorage.setItem('electra_current_user', currentUser);
+    loadStateFromStorage();
+    initializeUI();
+    renderDashboard();
+    hideAuthScreen();
+    
+    usernameInput.value = '';
+    passwordInput.value = '';
+  } else {
+    const userExists = users.some(u => u.username === username);
+    if (userExists) {
+      showAuthError('Username already exists. Please choose another.');
+      return;
+    }
+    
+    users.push({ username, password });
+    localStorage.setItem('electra_users', JSON.stringify(users));
+    
+    currentUser = username;
+    localStorage.setItem('electra_current_user', currentUser);
+    
+    initializeDefaultState();
+    initializeUI();
+    renderDashboard();
+    hideAuthScreen();
+    
+    usernameInput.value = '';
+    passwordInput.value = '';
+    
+    alert(`🎉 Welcome to ElectraInsight, ${username}! Your account has been registered.`);
+  }
+}
+
+function showAuthError(msg) {
+  const errorBox = document.getElementById('authError');
+  if (errorBox) {
+    errorBox.innerText = msg;
+    errorBox.classList.remove('hidden');
+    
+    errorBox.style.animation = 'none';
+    errorBox.offsetHeight; /* trigger reflow */
+    errorBox.style.animation = null;
+  }
+}
+
+function handleLogout() {
+  if (confirm('Are you sure you want to log out?')) {
+    currentUser = null;
+    localStorage.removeItem('electra_current_user');
+    
+    appState = {
+      properties: [],
+      selectedPropertyId: '',
+      gamification: {}
+    };
+    
+    showAuthScreen();
+    document.getElementById('authUsername').value = '';
+    document.getElementById('authPassword').value = '';
+    document.getElementById('authError').classList.add('hidden');
+    
+    const tabLogin = document.getElementById('tabLoginBtn');
+    if (tabLogin) tabLogin.click();
+  }
+}
+
+/* ----------------------------------------------------
    DOM RENDERING & CONTROLLER INTERACTION
    ---------------------------------------------------- */
 document.addEventListener('DOMContentLoaded', () => {
+  initAuthSystem();
   loadStateFromStorage();
   loadTheme();
   initializeUI();
@@ -331,16 +494,18 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeUI() {
   // Populate property selector
   const propSelector = document.getElementById('propertySelector');
-  propSelector.innerHTML = '';
-  appState.properties.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.innerText = p.name;
-    if (p.id === appState.selectedPropertyId) {
-      opt.selected = true;
-    }
-    propSelector.appendChild(opt);
-  });
+  if (propSelector) {
+    propSelector.innerHTML = '';
+    (appState.properties || []).forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.innerText = p.name;
+      if (p.id === appState.selectedPropertyId) {
+        opt.selected = true;
+      }
+      propSelector.appendChild(opt);
+    });
+  }
 
   // Initialize common header metrics
   updateGlobalHeaderMetrics();
@@ -556,6 +721,11 @@ function initializeUI() {
 
 function updateGlobalHeaderMetrics() {
   const prop = getActiveProperty();
+  if (!prop) {
+    document.getElementById('streakCount').innerText = `0 Months`;
+    document.getElementById('headerScoreValue').innerText = '--';
+    return;
+  }
   
   // Dynamically calculate and update the saving streak based on history
   updateStreakValue(prop);
@@ -612,6 +782,7 @@ function computeEnergyScore(property) {
    ---------------------------------------------------- */
 function renderDashboard() {
   const prop = getActiveProperty();
+  if (!prop) return;
   
   // Dynamically calculate and update the saving streak based on history
   updateStreakValue(prop);
@@ -1280,6 +1451,122 @@ function loadDemoHistory() {
   alert('Sample billing records and appliance parameters loaded successfully for: ' + prop.name + '\n(Note: This sample data is temporary and will be cleared when you close or reload the website.)');
 }
 
+/* Extracts month/year and full date string from a file name */
+function extractDateFromFilename(filename) {
+  if (!filename) return null;
+  const name = filename.toLowerCase();
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const fullMonthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+
+  // Pattern A: Month name + Year (e.g., "may_2025", "jan-25", "june 2024")
+  const monthNameRegex = /(?:^|[^a-z])(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[-\s_]*(\d{2,4})(?:$|[^0-9])/;
+  const matchA = monthNameRegex.exec(name);
+  if (matchA) {
+    let mon = matchA[1];
+    let year = parseInt(matchA[2]);
+    if (year < 100) {
+      year = (year < 50 ? 2000 : 1900) + year;
+    }
+    let monthIdx = monthNames.map(m => m.toLowerCase()).indexOf(mon.substring(0, 3));
+    if (monthIdx === -1) monthIdx = fullMonthNames.indexOf(mon);
+    if (monthIdx !== -1) {
+      const monFormatted = monthNames[monthIdx];
+      const mVal = monthIdx + 1;
+      const padM = String(mVal).padStart(2, '0');
+      return {
+        monthStr: `${monFormatted} ${year}`,
+        dateStr: `${year}-${padM}-15`,
+        monthVal: mVal,
+        yearVal: year
+      };
+    }
+  }
+
+  // Pattern B: Full date YYYY-MM-DD or DD-MM-YYYY
+  const dateRegex = /(?:^|[^0-9])(\d{4})[-\s_](\d{1,2})[-\s_](\d{1,2})(?:$|[^0-9])/;
+  const matchB = dateRegex.exec(name);
+  if (matchB) {
+    const y = parseInt(matchB[1]);
+    const m = parseInt(matchB[2]);
+    const d = parseInt(matchB[3]);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      const monFormatted = monthNames[m - 1];
+      const padM = String(m).padStart(2, '0');
+      const padD = String(d).padStart(2, '0');
+      return {
+        monthStr: `${monFormatted} ${y}`,
+        dateStr: `${y}-${padM}-${padD}`,
+        monthVal: m,
+        yearVal: y
+      };
+    }
+  }
+
+  const dateRegexAlt = /(?:^|[^0-9])(\d{1,2})[-\s_](\d{1,2})[-\s_](\d{2,4})(?:$|[^0-9])/;
+  const matchBAlt = dateRegexAlt.exec(name);
+  if (matchBAlt) {
+    let d = parseInt(matchBAlt[1]);
+    let m = parseInt(matchBAlt[2]);
+    let y = parseInt(matchBAlt[3]);
+    if (y < 100) {
+      y = (y < 50 ? 2000 : 1900) + y;
+    }
+    if (m > 12 && d <= 12) {
+      const temp = m;
+      m = d;
+      d = temp;
+    }
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      const monFormatted = monthNames[m - 1];
+      const padM = String(m).padStart(2, '0');
+      const padD = String(d).padStart(2, '0');
+      return {
+        monthStr: `${monFormatted} ${y}`,
+        dateStr: `${y}-${padM}-${padD}`,
+        monthVal: m,
+        yearVal: y
+      };
+    }
+  }
+
+  // Pattern C: Numeric Month & Year (e.g., "05-2025", "2025_06")
+  const numericMYRegex1 = /(?:^|[^0-9])(\d{1,2})[-\s_](\d{4})(?:$|[^0-9])/;
+  const matchC1 = numericMYRegex1.exec(name);
+  if (matchC1) {
+    const m = parseInt(matchC1[1]);
+    const y = parseInt(matchC1[2]);
+    if (m >= 1 && m <= 12) {
+      const monFormatted = monthNames[m - 1];
+      const padM = String(m).padStart(2, '0');
+      return {
+        monthStr: `${monFormatted} ${y}`,
+        dateStr: `${y}-${padM}-15`,
+        monthVal: m,
+        yearVal: y
+      };
+    }
+  }
+
+  const numericMYRegex2 = /(?:^|[^0-9])(\d{4})[-\s_](\d{1,2})(?:$|[^0-9])/;
+  const matchC2 = numericMYRegex2.exec(name);
+  if (matchC2) {
+    const y = parseInt(matchC2[1]);
+    const m = parseInt(matchC2[2]);
+    if (m >= 1 && m <= 12) {
+      const monFormatted = monthNames[m - 1];
+      const padM = String(m).padStart(2, '0');
+      return {
+        monthStr: `${monFormatted} ${y}`,
+        dateStr: `${y}-${padM}-15`,
+        monthVal: m,
+        yearVal: y
+      };
+    }
+  }
+
+  return null;
+}
+
 /* Parses local PDF client-side using PDF.js and tries to extract billing items */
 async function handleUploadedBillPDF(file) {
   if (!file) return;
@@ -1310,7 +1597,6 @@ async function handleUploadedBillPDF(file) {
         dropzone.classList.remove('hidden');
         
         const prop = getActiveProperty();
-        const nextMonthName = getNextAvailablePastMonth(prop);
         
         if (prop.billingType === 'prepaid') {
           // Log recharge from OCR statement
@@ -1327,8 +1613,15 @@ async function handleUploadedBillPDF(file) {
           if (!prop.recharges) prop.recharges = [];
           if (prop.balance === undefined) prop.balance = 0;
           
+          // Try to extract date from filename
+          let rechargeDate = new Date().toISOString().split('T')[0];
+          const filenameDate = extractDateFromFilename(file.name);
+          if (filenameDate && filenameDate.dateStr) {
+            rechargeDate = filenameDate.dateStr;
+          }
+
           prop.recharges.unshift({
-            date: new Date().toISOString().split('T')[0],
+            date: rechargeDate,
             amount: rechargeAmt,
             receiptNo: receiptNo
           });
@@ -1338,13 +1631,23 @@ async function handleUploadedBillPDF(file) {
           renderDashboard();
           updateGlobalHeaderMetrics();
           
-          alert(`⚡ Recharge Receipt OCR Scan Completed!\nReceipt logged: ₹${rechargeAmt}\nReceipt No: ${receiptNo}\nNew Balance: ₹${prop.balance}`);
+          alert(`⚡ Recharge Receipt OCR Scan Completed!\nReceipt logged: ₹${rechargeAmt}\nReceipt No: ${receiptNo}\nDate: ${rechargeDate}\nNew Balance: ₹${prop.balance}`);
         } else {
           // Postpaid bill simulated extraction
           const units = Math.round(300 + Math.random() * 200);
           const amount = Math.round(units * BASE_RATE + 200);
-          const dummyText = `Consumer No: 109843729\nUnits Billed: ${units} kWh\nTotal Bill Amount: ₹${amount}\nBill Month: ${nextMonthName}`;
-          parseBillTextAndAddRecord(dummyText);
+          
+          // Try to extract date from filename
+          let billMonth = null;
+          const filenameDate = extractDateFromFilename(file.name);
+          if (filenameDate && filenameDate.monthStr) {
+            billMonth = filenameDate.monthStr;
+          } else {
+            billMonth = getNextAvailablePastMonth(prop);
+          }
+
+          const dummyText = `Consumer No: 109843729\nUnits Billed: ${units} kWh\nTotal Bill Amount: ₹${amount}\nBill Month: ${billMonth}`;
+          parseBillTextAndAddRecord(dummyText, file.name);
         }
         
       }, 1800); // 1.8s simulation delay
@@ -1386,7 +1689,7 @@ async function handleUploadedBillPDF(file) {
         // Reduced delay for faster user feedback
         setTimeout(() => {
           try {
-            parseBillTextAndAddRecord(fullText);
+            parseBillTextAndAddRecord(fullText, file.name);
           } catch (e) {
             console.error('Error during parsing/storing record:', e);
             alert('Failed to parse bill details. Please verify your PDF format.');
@@ -1509,7 +1812,7 @@ function deletePrepaidRechargeRecord(propertyId, index) {
 }
 
 /* Helper to parse text using regex rules and push to property history */
-function parseBillTextAndAddRecord(text) {
+function parseBillTextAndAddRecord(text, filename) {
   console.log("PDF parsed raw text length:", text.length);
   
   const prop = getActiveProperty();
@@ -1576,29 +1879,148 @@ function parseBillTextAndAddRecord(text) {
     }
   }
 
-  // 4. Month patterns
-  const monthRegexes = [
-    /(?:january|february|march|april|may|june|july|august|september|october|november|december)\s*\d{4}/i,
-    /(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-\s]*\d{4}/i,
-    /bill\s*month\s*[:\-\s]*([a-z]{3,9}\s*\d{4})/i
-  ];
-  for (let regex of monthRegexes) {
-    const match = regex.exec(text);
-    if (match) {
-      monthStr = match[1] || match[0];
-      // Format as "Jun 2026"
-      const parts = monthStr.split(/[\s\-]+/);
-      if (parts.length >= 2) {
-        const mon = parts[0].substring(0, 3);
-        const year = parts[1];
-        monthStr = mon.charAt(0).toUpperCase() + mon.slice(1).toLowerCase() + ' ' + year;
-      }
-      break;
+  // 4. Month extraction engine (try multiple sequential patterns)
+  // Pattern 1: Full month name / Abbreviation + Year (4-digit or 2-digit)
+  const patternMonthYear = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)[-\s/]*(\d{2,4})\b/i;
+  let monthMatch = patternMonthYear.exec(text);
+  if (monthMatch) {
+    const mon = monthMatch[1].substring(0, 3);
+    const monFormatted = mon.charAt(0).toUpperCase() + mon.slice(1).toLowerCase();
+    let year = parseInt(monthMatch[2]);
+    if (year < 100) {
+      year = (year < 50 ? 2000 : 1900) + year;
+    }
+    monthStr = monFormatted + ' ' + year;
+  }
+
+  // Pattern 1B: Year + Month name (e.g. "2025 May", "2025-Oct")
+  if (!monthStr) {
+    const patternYearMonth = /\b(\d{4})[-\s/]*(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)\b/i;
+    monthMatch = patternYearMonth.exec(text);
+    if (monthMatch) {
+      let year = parseInt(monthMatch[1]);
+      const mon = monthMatch[2].substring(0, 3);
+      const monFormatted = mon.charAt(0).toUpperCase() + mon.slice(1).toLowerCase();
+      monthStr = monFormatted + ' ' + year;
     }
   }
 
-  // Fallback engine for demos if uploading a random PDF
-  // We calculate next month in sequence with random realistic variables
+  // Pattern 2: 3-part date near labels (e.g. "Bill Date: 12/05/2025", "Date of Issue: 2025-05-12")
+  if (!monthStr) {
+    const patternLabelDate = /(?:bill|issue|statement|invoice)?\s*date\s*[:\-\s]*\b(\d{1,2})[-\s/](\d{1,2})[-\s/](\d{2,4})\b/i;
+    monthMatch = patternLabelDate.exec(text);
+    if (monthMatch) {
+      let d = parseInt(monthMatch[1]);
+      let m = parseInt(monthMatch[2]);
+      let y = parseInt(monthMatch[3]);
+      if (m > 12 && d <= 12) {
+        const temp = m;
+        m = d;
+        d = temp;
+      }
+      if (m >= 1 && m <= 12) {
+        if (y < 100) {
+          y = (y < 50 ? 2000 : 1900) + y;
+        }
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        monthStr = monthNames[m - 1] + ' ' + y;
+      }
+    }
+  }
+
+  // Pattern 2B: 3-part date (year first) near labels (e.g. "Bill Date: 2025-05-12")
+  if (!monthStr) {
+    const patternLabelDateYearFirst = /(?:bill|issue|statement|invoice)?\s*date\s*[:\-\s]*\b(\d{4})[-\s/](\d{1,2})[-\s/](\d{1,2})\b/i;
+    monthMatch = patternLabelDateYearFirst.exec(text);
+    if (monthMatch) {
+      let y = parseInt(monthMatch[1]);
+      let m = parseInt(monthMatch[2]);
+      let d = parseInt(monthMatch[3]);
+      if (m >= 1 && m <= 12) {
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        monthStr = monthNames[m - 1] + ' ' + y;
+      }
+    }
+  }
+
+  // Pattern 3: Generic 3-part date anywhere (e.g. "15-05-2025")
+  if (!monthStr) {
+    const patternGenericDate = /\b(\d{1,2})[-\s/](\d{1,2})[-\s/](\d{2,4})\b/;
+    monthMatch = patternGenericDate.exec(text);
+    if (monthMatch) {
+      let d = parseInt(monthMatch[1]);
+      let m = parseInt(monthMatch[2]);
+      let y = parseInt(monthMatch[3]);
+      if (m > 12 && d <= 12) {
+        const temp = m;
+        m = d;
+        d = temp;
+      }
+      if (m >= 1 && m <= 12) {
+        if (y < 100) {
+          y = (y < 50 ? 2000 : 1900) + y;
+        }
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        monthStr = monthNames[m - 1] + ' ' + y;
+      }
+    }
+  }
+
+  // Pattern 3B: Generic 3-part date (year first) anywhere (e.g. "2025-05-12")
+  if (!monthStr) {
+    const patternGenericDateYearFirst = /\b(\d{4})[-\s/](\d{1,2})[-\s/](\d{1,2})\b/;
+    monthMatch = patternGenericDateYearFirst.exec(text);
+    if (monthMatch) {
+      let y = parseInt(monthMatch[1]);
+      let m = parseInt(monthMatch[2]);
+      let d = parseInt(monthMatch[3]);
+      if (m >= 1 && m <= 12) {
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        monthStr = monthNames[m - 1] + ' ' + y;
+      }
+    }
+  }
+
+  // Pattern 4: 2-part numeric month/year (e.g. "05/2025", "2025-06")
+  // Guarded against 3-part date substrings using negative lookbehind and negative lookahead
+  if (!monthStr) {
+    const patternNumericMonth = /(?:bill(?:ing)?\s*(?:month|period|cycle|date)?\s*[:\-\s]*)?(?<!\d[-\s/])\b(\d{1,2})[-\s/](\d{2,4})\b(?![-\s/]\d)/i;
+    monthMatch = patternNumericMonth.exec(text);
+    if (monthMatch) {
+      const monthVal = parseInt(monthMatch[1]);
+      let yearVal = parseInt(monthMatch[2]);
+      if (monthVal >= 1 && monthVal <= 12) {
+        if (yearVal < 100) {
+          yearVal = (yearVal < 50 ? 2000 : 1900) + yearVal;
+        }
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        monthStr = monthNames[monthVal - 1] + ' ' + yearVal;
+      }
+    }
+  }
+
+  // Pattern 4B: 2-part numeric month/year (year first, e.g. "2025-06")
+  if (!monthStr) {
+    const patternNumericMonthYearFirst = /(?:bill(?:ing)?\s*(?:month|period|cycle|date)?\s*[:\-\s]*)?(?<!\d[-\s/])\b(\d{4})[-\s/](\d{1,2})\b(?![-\s/]\d)/i;
+    monthMatch = patternNumericMonthYearFirst.exec(text);
+    if (monthMatch) {
+      let yearVal = parseInt(monthMatch[1]);
+      const monthVal = parseInt(monthMatch[2]);
+      if (monthVal >= 1 && monthVal <= 12) {
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        monthStr = monthNames[monthVal - 1] + ' ' + yearVal;
+      }
+    }
+  }
+
+  // Pattern 5: Filename check
+  if (!monthStr && filename) {
+    const filenameDate = extractDateFromFilename(filename);
+    if (filenameDate) {
+      monthStr = filenameDate.monthStr;
+    }
+  }
+
   // Fallback engine for missing units or amount
   if (!units || !amount) {
     console.log("Regex parameters failed. Generating simulated fallback billing card.");
