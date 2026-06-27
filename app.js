@@ -1838,9 +1838,14 @@ function parseBillTextAndAddRecord(text, filename) {
 
   // 1. Consumer No patterns
   const consumerMatches = [
-    /consumer\s*(?:no|num|number)\s*[:\-\s]*(\d{8,12})/i,
-    /account\s*(?:no|id|number)\s*[:\-\s]*(\d{8,12})/i,
-    /conn\s*(?:no|id|id)\s*[:\-\s]*(\d{8,12})/i
+    /\bca\s*(?:no|num|number)?\.?\s*[:\-\s]*(\d{8,12})\b/i,
+    /\bcontract\s*account\s*(?:no|num|number)?\.?\s*[:\-\s]*(\d{8,12})\b/i,
+    /\bconsumer\s*(?:no|num|number|id)?\.?\s*[:\-\s]*(\d{8,12})\b/i,
+    /\baccount\s*(?:no|id|number)?\.?\s*[:\-\s]*(\d{8,12})\b/i,
+    /\bconn\s*(?:no|id)?\.?\s*[:\-\s]*(\d{8,12})\b/i,
+    /\bbp\s*(?:no|num|number)?\.?\s*[:\-\s]*(\d{8,12})\b/i,
+    /\bk\s*[-]?\s*no\.?\s*[:\-\s]*(\d{8,12})\b/i,
+    /\bsc\s*(?:no|num|number)?\.?\s*[:\-\s]*(\d{8,12})\b/i
   ];
   for (let regex of consumerMatches) {
     const match = regex.exec(text);
